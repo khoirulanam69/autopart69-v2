@@ -33,13 +33,13 @@ const Products = () => {
     searchProducts(searchQuery, selectedCategory);
   };
 
-  const handleCreateProduct = async (data: any) => {
-    return await createProduct(data);
+  const handleCreateProduct = async (data: any, imageFile?: File) => {
+    return await createProduct(data, imageFile);
   };
 
-  const handleUpdateProduct = async (data: any) => {
+  const handleUpdateProduct = async (data: any, imageFile?: File) => {
     if (editingProduct) {
-      return await updateProduct(editingProduct.id, data);
+      return await updateProduct(editingProduct.id, data, imageFile);
     }
   };
 
@@ -206,6 +206,15 @@ const Products = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {products.map((product) => (
                 <Card key={product.id} className="h-fit">
+                  {product.image_url && (
+                    <div className="w-full h-48 overflow-hidden">
+                      <img 
+                        src={product.image_url} 
+                        alt={product.name}
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
+                  )}
                   <CardHeader>
                     <div className="flex justify-between items-start">
                       <div className="flex-1">
