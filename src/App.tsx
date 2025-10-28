@@ -10,6 +10,7 @@ import NotFound from "./pages/NotFound";
 import Auth from "./pages/Auth";
 import Products from "./pages/Products";
 import Transactions from "./pages/Transactions";
+import Finance from "./pages/Finance";
 import Settings from "./pages/Settings";
 import Dashboard from "./pages/Dashboard";
 import { InstallPrompt } from "@/components/InstallPrompt";
@@ -43,6 +44,11 @@ const App = () => (
             <Route path="/transactions" element={
               <MainLayout>
                 <Transactions />
+              </MainLayout>
+            } />
+            <Route path="/finance" element={
+              <MainLayout>
+                <Finance />
               </MainLayout>
             } />
             <Route path="/settings" element={

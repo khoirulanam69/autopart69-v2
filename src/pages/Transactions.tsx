@@ -8,20 +8,23 @@ import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
-import { Search, Plus, Receipt, ShoppingCart, Trash2, Calendar } from 'lucide-react';
+import { Search, Plus, Receipt, ShoppingCart, Trash2, Calendar, Download, Pencil } from 'lucide-react';
 import { useProducts } from '@/hooks/useProducts';
 import { useToast } from '@/hooks/use-toast';
 import { useTransactions, type TransactionItem, type Transaction } from '@/hooks/useTransactions';
 import { useEffect } from 'react';
 import { AuthGuard } from '@/components/AuthGuard';
+import jsPDF from 'jspdf';
 
 const Transactions = () => {
   const { user } = useAuth();
   const { products } = useProducts();
   const { toast } = useToast();
-  const { transactions, loading, createTransaction: createTransactionInDB, deleteTransaction } = useTransactions();
+  const { transactions, loading, createTransaction: createTransactionInDB, updateTransaction: updateTransactionInDB, deleteTransaction } = useTransactions();
   
   const [showNewTransactionDialog, setShowNewTransactionDialog] = useState(false);
+  const [showEditTransactionDialog, setShowEditTransactionDialog] = useState(false);
+  const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedDateFilter, setSelectedDateFilter] = useState('all');
   const [selectedPaymentFilter, setSelectedPaymentFilter] = useState('all');
@@ -32,17 +35,41 @@ const Transactions = () => {
   const [transactionItems, setTransactionItems] = useState<TransactionItem[]>([]);
   const [selectedProduct, setSelectedProduct] = useState('');
   const [quantity, setQuantity] = useState(1);
+  const [technicianFee, setTechnicianFee] = useState(0);
+  const [otherFees, setOtherFees] = useState(0);
+
+  const openEditDialog = (transaction: Transaction) => {
+    setEditingTransaction(transaction);
+    setCustomerName(transaction.customer_name);
+    setPaymentMethod(transaction.payment_method);
+    setTransactionItems(transaction.items);
+    setTechnicianFee(transaction.technician_fee);
+    setOtherFees(transaction.other_fees);
+    setShowEditTransactionDialog(true);
+  };
+
+  const closeEditDialog = () => {
+    setShowEditTransactionDialog(false);
+    setEditingTransaction(null);
+    setCustomerName('');
+    setPaymentMethod('cash');
+    setTransactionItems([]);
+    setTechnicianFee(0);
+    setOtherFees(0);
+    setSelectedProduct('');
+    setQuantity(1);
+  };
 
   // Barcode scanner effect - always active when dialog is open
   useEffect(() => {
-    if (!showNewTransactionDialog) return;
+    if (!showNewTransactionDialog && !showEditTransactionDialog) return;
 
     let barcodeBuffer = '';
     let timeoutId: NodeJS.Timeout;
 
     const handleKeyPress = (e: KeyboardEvent) => {
       // Only process barcode input when dialog is open
-      if (showNewTransactionDialog) {
+      if (showNewTransactionDialog || showEditTransactionDialog) {
         // Don't interfere with normal input fields
         const target = e.target as HTMLElement;
         if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT') {
@@ -77,7 +104,7 @@ const Transactions = () => {
       document.removeEventListener('keypress', handleKeyPress, true);
       clearTimeout(timeoutId);
     };
-  }, [showNewTransactionDialog]);
+  }, [showNewTransactionDialog, showEditTransactionDialog]);
 
   const handleBarcodeScanned = (barcode: string) => {
     // Find product by barcode
@@ -121,6 +148,187 @@ const Transactions = () => {
       card: 'Kartu'
     };
     return labels[method] || method;
+  };
+
+  const generateReceipt = (transaction: Transaction) => {
+    const doc = new jsPDF();
+    const pageWidth = doc.internal.pageSize.getWidth();
+    
+    // Header with Autopart69 branding (no background)
+    doc.setTextColor(0, 0, 0);
+    doc.setFontSize(24);
+    doc.setFont('helvetica', 'bold');
+    doc.text('AUTOPART69', pageWidth / 2, 15, { align: 'center' });
+    
+    doc.setFontSize(11);
+    doc.setFont('helvetica', 'normal');
+    doc.text('Bengkel & Toko Sparepart', pageWidth / 2, 23, { align: 'center' });
+    
+    doc.setFontSize(9);
+    doc.text('Jl. Raya MM (Pasar Baru), Dampit', pageWidth / 2, 29, { align: 'center' });
+    doc.text('Telp: 081217177949', pageWidth / 2, 34, { align: 'center' });
+    
+    // Transaction details
+    doc.setFontSize(14);
+    doc.setFont('helvetica', 'bold');
+    doc.text('STRUK PEMBELIAN', pageWidth / 2, 48, { align: 'center' });
+    
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    let yPos = 58;
+    
+    doc.text(`ID Transaksi: ${transaction.id.substring(0, 8)}`, 15, yPos);
+    yPos += 7;
+    doc.text(`Tanggal: ${new Date(transaction.date).toLocaleDateString('id-ID', { 
+      day: '2-digit', 
+      month: 'long', 
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    })}`, 15, yPos);
+    yPos += 7;
+    doc.text(`Pelanggan: ${transaction.customer_name}`, 15, yPos);
+    yPos += 7;
+    doc.text(`Pembayaran: ${getPaymentMethodLabel(transaction.payment_method)}`, 15, yPos);
+    yPos += 10;
+    
+    // Line separator
+    doc.setLineWidth(0.5);
+    doc.line(15, yPos, pageWidth - 15, yPos);
+    yPos += 7;
+    
+    // Items header
+    doc.setFont('helvetica', 'bold');
+    doc.text('Item', 15, yPos);
+    doc.text('Qty', 120, yPos);
+    doc.text('Harga', 140, yPos);
+    doc.text('Total', pageWidth - 15, yPos, { align: 'right' });
+    yPos += 5;
+    
+    doc.setLineWidth(0.3);
+    doc.line(15, yPos, pageWidth - 15, yPos);
+    yPos += 7;
+    
+    // Items
+    doc.setFont('helvetica', 'normal');
+    transaction.items.forEach(item => {
+      if (yPos > 270) {
+        doc.addPage();
+        yPos = 20;
+      }
+      
+      // Truncate product name if too long
+      const maxNameLength = 40;
+      const productName = item.product_name.length > maxNameLength 
+        ? item.product_name.substring(0, maxNameLength) + '...' 
+        : item.product_name;
+      
+      doc.text(productName, 15, yPos);
+      doc.text(item.quantity.toString(), 120, yPos);
+      doc.text(formatPrice(item.price), 140, yPos);
+      doc.text(formatPrice(item.total), pageWidth - 15, yPos, { align: 'right' });
+      yPos += 7;
+    });
+    
+    yPos += 3;
+    doc.line(15, yPos, pageWidth - 15, yPos);
+    yPos += 7;
+    
+    // Subtotal
+    const subtotal = transaction.items.reduce((sum, item) => sum + item.total, 0);
+    doc.text('Subtotal Produk:', 15, yPos);
+    doc.text(formatPrice(subtotal), pageWidth - 15, yPos, { align: 'right' });
+    yPos += 7;
+    
+    // Technician fee
+    if (transaction.technician_fee > 0) {
+      doc.text('Biaya Teknisi:', 15, yPos);
+      doc.text(formatPrice(transaction.technician_fee), pageWidth - 15, yPos, { align: 'right' });
+      yPos += 7;
+    }
+    
+    // Other fees
+    if (transaction.other_fees > 0) {
+      doc.text('Biaya Lain-lain:', 15, yPos);
+      doc.text(formatPrice(transaction.other_fees), pageWidth - 15, yPos, { align: 'right' });
+      yPos += 7;
+    }
+    
+    yPos += 2;
+    doc.setLineWidth(0.5);
+    doc.line(15, yPos, pageWidth - 15, yPos);
+    yPos += 7;
+    
+    // Total
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(12);
+    doc.text('TOTAL:', 15, yPos);
+    doc.text(formatPrice(transaction.total_amount), pageWidth - 15, yPos, { align: 'right' });
+    
+    // Footer
+    yPos = doc.internal.pageSize.getHeight() - 20;
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'italic');
+    doc.setTextColor(100, 100, 100);
+    doc.text('Terima kasih atas kunjungan Anda!', pageWidth / 2, yPos, { align: 'center' });
+    doc.setFontSize(8);
+    doc.text('AUTOPART69 - Solusi Terpercaya Untuk Kendaraan Anda', pageWidth / 2, yPos + 5, { align: 'center' });
+    
+    return doc;
+  };
+
+  const handleCreateReceipt = (transaction: Transaction) => {
+    try {
+      const doc = generateReceipt(transaction);
+      doc.save(`Struk-${transaction.id.substring(0, 8)}.pdf`);
+      
+      toast({
+        title: "Berhasil",
+        description: "Struk berhasil dibuat dan diunduh"
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Gagal membuat struk",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const handleShareReceipt = async (transaction: Transaction) => {
+    try {
+      const doc = generateReceipt(transaction);
+      const pdfBlob = doc.output('blob');
+      const pdfFile = new File([pdfBlob], `Struk-${transaction.id.substring(0, 8)}.pdf`, { type: 'application/pdf' });
+      
+      // Check if Web Share API is supported
+      if (navigator.share && navigator.canShare({ files: [pdfFile] })) {
+        await navigator.share({
+          title: `Struk Transaksi - ${transaction.customer_name}`,
+          text: `Struk pembelian dari Autopart69\nTotal: ${formatPrice(transaction.total_amount)}`,
+          files: [pdfFile]
+        });
+        
+        toast({
+          title: "Berhasil",
+          description: "Struk berhasil dibagikan"
+        });
+      } else {
+        // Fallback: Download the file
+        doc.save(`Struk-${transaction.id.substring(0, 8)}.pdf`);
+        
+        toast({
+          title: "Info",
+          description: "Fitur berbagi tidak didukung. Struk telah diunduh.",
+        });
+      }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Gagal membagikan struk",
+        variant: "destructive"
+      });
+    }
   };
 
   const handleDeleteTransaction = async (transactionId: string) => {
@@ -197,7 +405,7 @@ const Transactions = () => {
   };
 
   const getTotalAmount = () => {
-    return transactionItems.reduce((sum, item) => sum + item.total, 0);
+    return transactionItems.reduce((sum, item) => sum + item.total, 0) + technicianFee + otherFees;
   };
 
   const createTransaction = async () => {
@@ -229,7 +437,9 @@ const Transactions = () => {
         quantity: item.quantity,
         price: item.price,
         total: item.total
-      }))
+      })),
+      technicianFee,
+      otherFees
     );
 
     if (result?.success) {
@@ -237,7 +447,50 @@ const Transactions = () => {
       setCustomerName('');
       setPaymentMethod('cash');
       setTransactionItems([]);
+      setTechnicianFee(0);
+      setOtherFees(0);
       setShowNewTransactionDialog(false);
+    }
+  };
+
+  const updateTransaction = async () => {
+    if (!editingTransaction) return;
+
+    if (!customerName.trim()) {
+      toast({
+        title: "Error",
+        description: "Nama pelanggan harus diisi",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    if (transactionItems.length === 0) {
+      toast({
+        title: "Error",
+        description: "Minimal harus ada 1 item",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    const result = await updateTransactionInDB(
+      editingTransaction.id,
+      customerName,
+      paymentMethod,
+      transactionItems.map(item => ({
+        product_id: item.product_id,
+        product_name: item.product_name,
+        quantity: item.quantity,
+        price: item.price,
+        total: item.total
+      })),
+      technicianFee,
+      otherFees
+    );
+
+    if (result?.success) {
+      closeEditDialog();
     }
   };
 
@@ -319,6 +572,30 @@ const Transactions = () => {
                         </Select>
                       </div>
 
+                      <div>
+                        <Label htmlFor="technician_fee">Biaya Teknisi</Label>
+                        <Input
+                          id="technician_fee"
+                          type="number"
+                          min="0"
+                          value={technicianFee}
+                          onChange={(e) => setTechnicianFee(parseFloat(e.target.value) || 0)}
+                          placeholder="0"
+                        />
+                      </div>
+
+                      <div>
+                        <Label htmlFor="other_fees">Biaya Lain-lain (Opsional)</Label>
+                        <Input
+                          id="other_fees"
+                          type="number"
+                          min="0"
+                          value={otherFees}
+                          onChange={(e) => setOtherFees(parseFloat(e.target.value) || 0)}
+                          placeholder="0"
+                        />
+                      </div>
+
                       <div className="space-y-2">
                         <Label>Tambah Produk</Label>
                         
@@ -382,8 +659,24 @@ const Transactions = () => {
                       </div>
                       
                       {transactionItems.length > 0 && (
-                        <div className="border-t pt-4">
-                          <div className="flex justify-between items-center font-bold text-lg">
+                        <div className="border-t pt-4 space-y-2">
+                          <div className="flex justify-between text-sm">
+                            <span>Subtotal Produk:</span>
+                            <span>{formatPrice(transactionItems.reduce((sum, item) => sum + item.total, 0))}</span>
+                          </div>
+                          {technicianFee > 0 && (
+                            <div className="flex justify-between text-sm">
+                              <span>Biaya Teknisi:</span>
+                              <span>{formatPrice(technicianFee)}</span>
+                            </div>
+                          )}
+                          {otherFees > 0 && (
+                            <div className="flex justify-between text-sm">
+                              <span>Biaya Lain-lain:</span>
+                              <span>{formatPrice(otherFees)}</span>
+                            </div>
+                          )}
+                          <div className="flex justify-between items-center font-bold text-lg border-t pt-2">
                             <span>Total:</span>
                             <span>{formatPrice(getTotalAmount())}</span>
                           </div>
@@ -398,6 +691,166 @@ const Transactions = () => {
                     </Button>
                     <Button onClick={createTransaction}>
                       Simpan Transaksi
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
+
+              {/* Edit Transaction Dialog */}
+              <Dialog open={showEditTransactionDialog} onOpenChange={(open) => !open && closeEditDialog()}>
+                <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+                  <DialogHeader>
+                    <DialogTitle>Edit Transaksi</DialogTitle>
+                    <DialogDescription>
+                      Ubah detail transaksi dan produk.
+                    </DialogDescription>
+                  </DialogHeader>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="space-y-4">
+                      <div>
+                        <Label htmlFor="edit-customer">Nama Pelanggan</Label>
+                        <Input
+                          id="edit-customer"
+                          value={customerName}
+                          onChange={(e) => setCustomerName(e.target.value)}
+                          placeholder="Masukkan nama pelanggan"
+                        />
+                      </div>
+                      
+                      <div>
+                        <Label htmlFor="edit-payment">Metode Pembayaran</Label>
+                        <Select value={paymentMethod} onValueChange={(value: any) => setPaymentMethod(value)}>
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="cash">Tunai</SelectItem>
+                            <SelectItem value="transfer">Transfer</SelectItem>
+                            <SelectItem value="card">Kartu</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <div>
+                        <Label htmlFor="edit-technician-fee">Biaya Teknisi</Label>
+                        <Input
+                          id="edit-technician-fee"
+                          type="number"
+                          min="0"
+                          value={technicianFee}
+                          onChange={(e) => setTechnicianFee(parseFloat(e.target.value) || 0)}
+                          placeholder="0"
+                        />
+                      </div>
+
+                      <div>
+                        <Label htmlFor="edit-other-fees">Biaya Lain-lain (Opsional)</Label>
+                        <Input
+                          id="edit-other-fees"
+                          type="number"
+                          min="0"
+                          value={otherFees}
+                          onChange={(e) => setOtherFees(parseFloat(e.target.value) || 0)}
+                          placeholder="0"
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label>Tambah Produk</Label>
+                        
+                        <div className="flex gap-2">
+                          <Select value={selectedProduct} onValueChange={setSelectedProduct}>
+                            <SelectTrigger className="flex-1">
+                              <SelectValue placeholder="Pilih produk" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {products.map(product => (
+                                <SelectItem key={product.id} value={product.id}>
+                                  {product.name} - {formatPrice(product.price)}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <Input
+                            type="number"
+                            value={quantity}
+                            onChange={(e) => setQuantity(parseInt(e.target.value) || 1)}
+                            placeholder="Qty"
+                            className="w-20"
+                            min="1"
+                          />
+                          <Button onClick={addItemToTransaction} disabled={!selectedProduct}>
+                            <Plus className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="space-y-4">
+                      <Label>Item Transaksi</Label>
+                      <div className="border rounded-lg p-4 max-h-64 overflow-y-auto">
+                        {transactionItems.length === 0 ? (
+                          <p className="text-muted-foreground text-center py-4">Belum ada item</p>
+                        ) : (
+                          <div className="space-y-2">
+                            {transactionItems.map(item => (
+                              <div key={item.id} className="flex items-center justify-between p-2 bg-muted rounded">
+                                <div className="flex-1">
+                                  <div className="font-medium">{item.product_name}</div>
+                                  <div className="text-sm text-muted-foreground">
+                                    {item.quantity} x {formatPrice(item.price)}
+                                  </div>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <span className="font-medium">{formatPrice(item.total)}</span>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => removeItemFromTransaction(item.id)}
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                  </Button>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                      
+                      {transactionItems.length > 0 && (
+                        <div className="border-t pt-4 space-y-2">
+                          <div className="flex justify-between text-sm">
+                            <span>Subtotal Produk:</span>
+                            <span>{formatPrice(transactionItems.reduce((sum, item) => sum + item.total, 0))}</span>
+                          </div>
+                          {technicianFee > 0 && (
+                            <div className="flex justify-between text-sm">
+                              <span>Biaya Teknisi:</span>
+                              <span>{formatPrice(technicianFee)}</span>
+                            </div>
+                          )}
+                          {otherFees > 0 && (
+                            <div className="flex justify-between text-sm">
+                              <span>Biaya Lain-lain:</span>
+                              <span>{formatPrice(otherFees)}</span>
+                            </div>
+                          )}
+                          <div className="flex justify-between items-center font-bold text-lg border-t pt-2">
+                            <span>Total:</span>
+                            <span>{formatPrice(getTotalAmount())}</span>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  <DialogFooter>
+                    <Button variant="outline" onClick={closeEditDialog}>
+                      Batal
+                    </Button>
+                    <Button onClick={updateTransaction}>
+                      Simpan Perubahan
                     </Button>
                   </DialogFooter>
                 </DialogContent>
@@ -531,13 +984,32 @@ const Transactions = () => {
                           </div>
                         </TableCell>
                         <TableCell>
-                          <Button
-                            size="sm"
-                            variant="destructive"
-                            onClick={() => handleDeleteTransaction(transaction.id)}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
+                          <div className="flex gap-2">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => openEditDialog(transaction)}
+                              title="Edit Transaksi"
+                            >
+                              <Pencil className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => handleShareReceipt(transaction)}
+                              title="Unduh Struk"
+                            >
+                              <Download className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="destructive"
+                              onClick={() => handleDeleteTransaction(transaction.id)}
+                              title="Hapus Transaksi"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
                         </TableCell>
                       </TableRow>
                     ))}

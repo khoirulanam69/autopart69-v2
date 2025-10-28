@@ -20,6 +20,8 @@ export interface Transaction {
   payment_method: 'cash' | 'transfer' | 'card';
   status: 'completed' | 'pending' | 'cancelled';
   items: TransactionItem[];
+  technician_fee: number;
+  other_fees: number;
 }
 
 export const useTransactions = () => {
@@ -60,7 +62,9 @@ export const useTransactions = () => {
           quantity: item.quantity,
           price: Number(item.price),
           total: Number(item.total)
-        })) || []
+        })) || [],
+        technician_fee: Number(t.technician_fee) || 0,
+        other_fees: Number(t.other_fees) || 0
       })) || [];
 
       setTransactions(transformedTransactions);
@@ -79,12 +83,14 @@ export const useTransactions = () => {
   const createTransaction = async (
     customerName: string,
     paymentMethod: 'cash' | 'transfer' | 'card',
-    items: Omit<TransactionItem, 'id'>[]
+    items: Omit<TransactionItem, 'id'>[],
+    technicianFee: number = 0,
+    otherFees: number = 0
   ) => {
     if (!user) return { error: 'User not authenticated' };
 
     try {
-      const totalAmount = items.reduce((sum, item) => sum + item.total, 0);
+      const totalAmount = items.reduce((sum, item) => sum + item.total, 0) + technicianFee + otherFees;
 
       // Start a transaction to ensure atomicity
       const { data: transactionData, error: transactionError } = await supabase
@@ -94,7 +100,9 @@ export const useTransactions = () => {
           customer_name: customerName,
           total_amount: totalAmount,
           payment_method: paymentMethod,
-          status: 'completed'
+          status: 'completed',
+          technician_fee: technicianFee,
+          other_fees: otherFees
         })
         .select()
         .single();
@@ -170,6 +178,147 @@ export const useTransactions = () => {
       toast({
         title: "Error",
         description: error.message || "Gagal membuat transaksi",
+        variant: "destructive"
+      });
+      return { error: error.message };
+    }
+  };
+
+  const updateTransaction = async (
+    transactionId: string,
+    customerName: string,
+    paymentMethod: 'cash' | 'transfer' | 'card',
+    items: Omit<TransactionItem, 'id'>[],
+    technicianFee: number = 0,
+    otherFees: number = 0
+  ) => {
+    if (!user) return { error: 'User not authenticated' };
+
+    try {
+      // Get existing transaction data
+      const { data: existingTransaction, error: fetchError } = await supabase
+        .from('transactions')
+        .select(`
+          *,
+          transaction_items (*)
+        `)
+        .eq('id', transactionId)
+        .single();
+
+      if (fetchError) throw fetchError;
+
+      // Restore stock for old items
+      for (const item of existingTransaction.transaction_items) {
+        const { data: productData, error: productFetchError } = await supabase
+          .from('products')
+          .select('stock')
+          .eq('id', item.product_id)
+          .single();
+
+        if (productFetchError) {
+          console.error('Error fetching product:', productFetchError);
+          throw new Error(`Gagal mengambil data produk ${item.product_name}`);
+        }
+
+        // Restore stock
+        const newStock = productData.stock + item.quantity;
+        const { error: stockUpdateError } = await supabase
+          .from('products')
+          .update({ stock: newStock })
+          .eq('id', item.product_id);
+
+        if (stockUpdateError) {
+          console.error('Error updating stock:', stockUpdateError);
+          throw new Error(`Gagal mengembalikan stok ${item.product_name}`);
+        }
+      }
+
+      // Delete old transaction items
+      const { error: itemsDeleteError } = await supabase
+        .from('transaction_items')
+        .delete()
+        .eq('transaction_id', transactionId);
+
+      if (itemsDeleteError) throw itemsDeleteError;
+
+      // Calculate new total
+      const totalAmount = items.reduce((sum, item) => sum + item.total, 0) + technicianFee + otherFees;
+
+      // Update transaction
+      const { error: transactionUpdateError } = await supabase
+        .from('transactions')
+        .update({
+          customer_name: customerName,
+          total_amount: totalAmount,
+          payment_method: paymentMethod,
+          technician_fee: technicianFee,
+          other_fees: otherFees,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', transactionId);
+
+      if (transactionUpdateError) throw transactionUpdateError;
+
+      // Insert new transaction items
+      const transactionItems = items.map(item => ({
+        transaction_id: transactionId,
+        product_id: item.product_id,
+        product_name: item.product_name,
+        quantity: item.quantity,
+        price: item.price,
+        total: item.total
+      }));
+
+      const { error: itemsInsertError } = await supabase
+        .from('transaction_items')
+        .insert(transactionItems);
+
+      if (itemsInsertError) throw itemsInsertError;
+
+      // Deduct stock for new items
+      for (const item of items) {
+        const { data: productData, error: productFetchError } = await supabase
+          .from('products')
+          .select('stock')
+          .eq('id', item.product_id)
+          .single();
+
+        if (productFetchError) {
+          console.error('Error fetching product:', productFetchError);
+          throw new Error(`Gagal mengambil data produk ${item.product_name}`);
+        }
+
+        const currentStock = productData.stock;
+        
+        if (currentStock < item.quantity) {
+          throw new Error(`Stok ${item.product_name} tidak mencukupi. Stok tersedia: ${currentStock}, diminta: ${item.quantity}`);
+        }
+
+        const newStock = currentStock - item.quantity;
+        const { error: stockUpdateError } = await supabase
+          .from('products')
+          .update({ stock: newStock })
+          .eq('id', item.product_id);
+
+        if (stockUpdateError) {
+          console.error('Error updating stock:', stockUpdateError);
+          throw new Error(`Gagal mengupdate stok ${item.product_name}`);
+        }
+      }
+
+      await fetchTransactions();
+
+      toast({
+        title: "Berhasil",
+        description: "Transaksi berhasil diperbarui"
+      });
+
+      return { success: true };
+    } catch (error: any) {
+      console.error('Error updating transaction:', error);
+      toast({
+        title: "Error",
+        description: error.message || "Gagal memperbarui transaksi",
         variant: "destructive"
       });
       return { error: error.message };
@@ -260,6 +409,7 @@ export const useTransactions = () => {
     transactions,
     loading,
     createTransaction,
+    updateTransaction,
     deleteTransaction,
     refetch: fetchTransactions
   };

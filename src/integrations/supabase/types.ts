@@ -7,13 +7,49 @@ export type Json =
   | Json[]
 
 export type Database = {
-  // Allows to automatically instanciate createClient with right options
+  // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
     PostgrestVersion: "12.2.12 (cd3cf9e)"
   }
   public: {
     Tables: {
+      income_expenses: {
+        Row: {
+          amount: number
+          category: string
+          created_at: string
+          date: string
+          description: string | null
+          id: string
+          type: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          amount?: number
+          category: string
+          created_at?: string
+          date?: string
+          description?: string | null
+          id?: string
+          type: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          amount?: number
+          category?: string
+          created_at?: string
+          date?: string
+          description?: string | null
+          id?: string
+          type?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       products: {
         Row: {
           barcode: string | null
@@ -21,6 +57,7 @@ export type Database = {
           created_at: string
           created_by: string | null
           id: string
+          image_url: string | null
           name: string
           price: number
           purchase_price: number
@@ -34,6 +71,7 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           id?: string
+          image_url?: string | null
           name: string
           price?: number
           purchase_price?: number
@@ -47,6 +85,7 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           id?: string
+          image_url?: string | null
           name?: string
           price?: number
           purchase_price?: number
@@ -109,8 +148,10 @@ export type Database = {
           created_at: string
           customer_name: string
           id: string
+          other_fees: number
           payment_method: string
           status: string
+          technician_fee: number
           total_amount: number
           updated_at: string
           user_id: string
@@ -119,8 +160,10 @@ export type Database = {
           created_at?: string
           customer_name: string
           id?: string
+          other_fees?: number
           payment_method: string
           status?: string
+          technician_fee?: number
           total_amount?: number
           updated_at?: string
           user_id: string
@@ -129,8 +172,10 @@ export type Database = {
           created_at?: string
           customer_name?: string
           id?: string
+          other_fees?: number
           payment_method?: string
           status?: string
+          technician_fee?: number
           total_amount?: number
           updated_at?: string
           user_id?: string

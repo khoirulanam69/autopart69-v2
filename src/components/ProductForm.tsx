@@ -5,12 +5,12 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Product } from '@/hooks/useProducts';
-import { Scan } from 'lucide-react';
+import { Scan, Upload, X } from 'lucide-react';
 
 interface ProductFormProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onSubmit: (data: any) => Promise<any>;
+  onSubmit: (data: any, imageFile?: File) => Promise<any>;
   product?: Product | null;
   title: string;
 }
@@ -37,6 +37,8 @@ const ProductForm = ({ open, onOpenChange, onSubmit, product, title }: ProductFo
   });
   const [loading, setLoading] = useState(false);
   const [isScanning, setIsScanning] = useState(false);
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(product?.image_url || null);
 
   // Update form data when product changes
   useEffect(() => {
@@ -50,6 +52,8 @@ const ProductForm = ({ open, onOpenChange, onSubmit, product, title }: ProductFo
         supplier: product.supplier || '',
         barcode: product.barcode || ''
       });
+      setImagePreview(product.image_url || null);
+      setImageFile(null);
     } else {
       setFormData({
         name: '',
@@ -60,6 +64,8 @@ const ProductForm = ({ open, onOpenChange, onSubmit, product, title }: ProductFo
         supplier: '',
         barcode: ''
       });
+      setImagePreview(null);
+      setImageFile(null);
     }
   }, [product]);
 
@@ -102,11 +108,28 @@ const ProductForm = ({ open, onOpenChange, onSubmit, product, title }: ProductFo
     };
   }, [isScanning]);
 
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setImageFile(file);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setImagePreview(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleRemoveImage = () => {
+    setImageFile(null);
+    setImagePreview(null);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     
-    const result = await onSubmit(formData);
+    const result = await onSubmit(formData, imageFile || undefined);
     
     if (result?.error === null) {
       onOpenChange(false);
@@ -119,6 +142,8 @@ const ProductForm = ({ open, onOpenChange, onSubmit, product, title }: ProductFo
         supplier: '',
         barcode: ''
       });
+      setImageFile(null);
+      setImagePreview(null);
     }
     setLoading(false);
   };
@@ -131,6 +156,44 @@ const ProductForm = ({ open, onOpenChange, onSubmit, product, title }: ProductFo
         </DialogHeader>
         
         <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="image">Foto Produk</Label>
+            <div className="space-y-2">
+              {imagePreview ? (
+                <div className="relative w-full h-48 border rounded-lg overflow-hidden">
+                  <img 
+                    src={imagePreview} 
+                    alt="Preview" 
+                    className="w-full h-full object-cover"
+                  />
+                  <Button
+                    type="button"
+                    variant="destructive"
+                    size="sm"
+                    className="absolute top-2 right-2"
+                    onClick={handleRemoveImage}
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                </div>
+              ) : (
+                <div className="border-2 border-dashed rounded-lg p-4 text-center">
+                  <Upload className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
+                  <Label htmlFor="image-upload" className="cursor-pointer text-sm text-muted-foreground hover:text-foreground">
+                    Klik untuk upload foto
+                  </Label>
+                  <Input
+                    id="image-upload"
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={handleImageChange}
+                  />
+                </div>
+              )}
+            </div>
+          </div>
+
           <div className="space-y-2">
             <Label htmlFor="name">Nama Produk *</Label>
             <Input

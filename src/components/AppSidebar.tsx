@@ -2,6 +2,7 @@ import {
   BarChart3, 
   Package, 
   CreditCard, 
+  Wallet,
   Settings,
   LogOut
 } from 'lucide-react';
@@ -35,6 +36,11 @@ const navigationItems = [
     title: "Transaksi",
     url: "/transactions", 
     icon: CreditCard,
+  },
+  {
+    title: "Keuangan",
+    url: "/finance",
+    icon: Wallet,
   },
   {
     title: "Settings",
