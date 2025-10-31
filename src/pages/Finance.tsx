@@ -22,6 +22,8 @@ export default function Finance() {
   const [selectedPeriod, setSelectedPeriod] = useState<'day' | 'week' | 'month' | 'year'>('month');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<any>(null);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [itemToDelete, setItemToDelete] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     type: 'expense' as 'income' | 'expense',
     amount: '',
@@ -35,6 +37,35 @@ export default function Finance() {
     const product = products.find(p => p.id === productId);
     return product?.purchase_price ? Number(product.purchase_price) : 0;
   };
+
+  // Filter income/expenses first
+  const filteredIncomeExpenses = incomeExpenses.filter(item => {
+    const itemDate = parseISO(item.date);
+    const now = new Date();
+    switch (selectedPeriod) {
+      case 'day':
+        return itemDate.toDateString() === now.toDateString();
+      case 'week':
+        const weekAgo = new Date(now);
+        weekAgo.setDate(now.getDate() - 7);
+        return itemDate >= weekAgo;
+      case 'month':
+        return itemDate.getMonth() === now.getMonth() && 
+               itemDate.getFullYear() === now.getFullYear();
+      case 'year':
+        return itemDate.getFullYear() === now.getFullYear();
+      default:
+        return true;
+    }
+  });
+
+  const totalIncome = filteredIncomeExpenses
+    .filter(item => item.type === 'income')
+    .reduce((sum, item) => sum + Number(item.amount), 0);
+
+  const totalExpense = filteredIncomeExpenses
+    .filter(item => item.type === 'expense')
+    .reduce((sum, item) => sum + Number(item.amount), 0);
 
   // Calculate financial metrics
   const calculateMetrics = () => {
@@ -65,10 +96,22 @@ export default function Finance() {
       );
       return sum + itemsCost;
     }, 0);
-    const totalProfit = totalRevenue - totalCost;
-    const profitMargin = totalRevenue > 0 ? (totalProfit / totalRevenue) * 100 : 0;
+    const grossProfit = totalRevenue - totalCost;
+    const grossMargin = totalRevenue > 0 ? (grossProfit / totalRevenue) * 100 : 0;
 
-    return { totalRevenue, totalCost, totalProfit, profitMargin, transactionCount: filtered.length };
+    // Calculate net profit and net margin
+    const netProfit = (grossProfit + totalIncome) - totalExpense;
+    const netMargin = totalRevenue > 0 ? (netProfit / totalRevenue) * 100 : 0;
+
+    return { 
+      totalRevenue, 
+      totalCost, 
+      grossProfit, 
+      grossMargin, 
+      netProfit,
+      netMargin,
+      transactionCount: filtered.length 
+    };
   };
 
   const metrics = calculateMetrics();
@@ -120,48 +163,28 @@ export default function Finance() {
   };
 
   const handleDelete = (id: string) => {
-    if (confirm('Apakah Anda yakin ingin menghapus data ini?')) {
-      deleteIncomeExpense(id);
-    }
+    setItemToDelete(id);
+    setShowDeleteDialog(true);
   };
 
-  const filteredIncomeExpenses = incomeExpenses.filter(item => {
-    const itemDate = parseISO(item.date);
-    const now = new Date();
-    switch (selectedPeriod) {
-      case 'day':
-        return itemDate.toDateString() === now.toDateString();
-      case 'week':
-        const weekAgo = new Date(now);
-        weekAgo.setDate(now.getDate() - 7);
-        return itemDate >= weekAgo;
-      case 'month':
-        return itemDate.getMonth() === now.getMonth() && 
-               itemDate.getFullYear() === now.getFullYear();
-      case 'year':
-        return itemDate.getFullYear() === now.getFullYear();
-      default:
-        return true;
+  const handleConfirmDelete = () => {
+    if (itemToDelete) {
+      deleteIncomeExpense(itemToDelete);
     }
-  });
+    setShowDeleteDialog(false);
+    setItemToDelete(null);
+  };
 
-  const totalIncome = filteredIncomeExpenses
-    .filter(item => item.type === 'income')
-    .reduce((sum, item) => sum + Number(item.amount), 0);
-
-  const totalExpense = filteredIncomeExpenses
-    .filter(item => item.type === 'expense')
-    .reduce((sum, item) => sum + Number(item.amount), 0);
 
   return (
-    <div className="p-6 space-y-6">
-      <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-3xl font-bold">Manajemen Keuangan</h1>
-          <p className="text-muted-foreground">Kelola dan pantau keuangan bisnis Anda</p>
+    <div className="w-full max-w-full overflow-x-hidden p-3 sm:p-6 space-y-4 sm:space-y-6">
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
+        <div className="min-w-0">
+          <h1 className="text-2xl sm:text-3xl font-bold truncate">Manajemen Keuangan</h1>
+          <p className="text-muted-foreground text-sm sm:text-base">Kelola dan pantau keuangan bisnis Anda</p>
         </div>
         <Select value={selectedPeriod} onValueChange={(value: any) => setSelectedPeriod(value)}>
-          <SelectTrigger className="w-[180px]">
+          <SelectTrigger className="w-full sm:w-[180px]">
             <Calendar className="h-4 w-4 mr-2" />
             <SelectValue />
           </SelectTrigger>
@@ -175,7 +198,7 @@ export default function Finance() {
       </div>
 
       {/* Financial Summary Cards */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <div className="w-full grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Pendapatan</CardTitle>
@@ -208,16 +231,16 @@ export default function Finance() {
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Laba Bersih</CardTitle>
-            {metrics.totalProfit >= 0 ? (
+            <CardTitle className="text-sm font-medium">Laba Kotor</CardTitle>
+            {metrics.grossProfit >= 0 ? (
               <TrendingUp className="h-4 w-4 text-green-500" />
             ) : (
               <TrendingDown className="h-4 w-4 text-red-500" />
             )}
           </CardHeader>
           <CardContent>
-            <div className={`text-2xl font-bold ${metrics.totalProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-              Rp {metrics.totalProfit.toLocaleString('id-ID')}
+            <div className={`text-2xl font-bold ${metrics.grossProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+              Rp {metrics.grossProfit.toLocaleString('id-ID')}
             </div>
             <p className="text-xs text-muted-foreground mt-1">
               {getPeriodLabel()}
@@ -227,27 +250,65 @@ export default function Finance() {
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Margin Keuntungan</CardTitle>
+            <CardTitle className="text-sm font-medium">Margin Kotor</CardTitle>
             <TrendingUp className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {metrics.profitMargin.toFixed(1)}%
+              {metrics.grossMargin.toFixed(2)}%
             </div>
             <p className="text-xs text-muted-foreground mt-1">
               {metrics.transactionCount} transaksi
             </p>
           </CardContent>
         </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Laba Bersih</CardTitle>
+            {metrics.netProfit >= 0 ? (
+              <TrendingUp className="h-4 w-4 text-green-500" />
+            ) : (
+              <TrendingDown className="h-4 w-4 text-red-500" />
+            )}
+          </CardHeader>
+          <CardContent>
+            <div className={`text-2xl font-bold ${metrics.netProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+              Rp {metrics.netProfit.toLocaleString('id-ID')}
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              {getPeriodLabel()}
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Margin Bersih</CardTitle>
+            {metrics.netMargin >= 0 ? (
+              <TrendingUp className="h-4 w-4 text-green-500" />
+            ) : (
+              <TrendingDown className="h-4 w-4 text-red-500" />
+            )}
+          </CardHeader>
+          <CardContent>
+            <div className={`text-2xl font-bold ${metrics.netMargin >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+              {metrics.netMargin.toFixed(2)}%
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              {getPeriodLabel()}
+            </p>
+          </CardContent>
+        </Card>
       </div>
 
       {/* Detailed Financial Reports */}
-      <Tabs defaultValue="overview" className="space-y-4">
-        <TabsList>
-          <TabsTrigger value="overview">Ringkasan</TabsTrigger>
-          <TabsTrigger value="income-expenses">Pemasukan & Pengeluaran</TabsTrigger>
-          <TabsTrigger value="transactions">Detail Transaksi</TabsTrigger>
-          <TabsTrigger value="products">Analisis Produk</TabsTrigger>
+      <Tabs defaultValue="overview" className="w-full space-y-4">
+        <TabsList className="w-full grid grid-cols-2 sm:grid-cols-4 h-auto">
+          <TabsTrigger value="overview" className="text-xs sm:text-sm py-2">Ringkasan</TabsTrigger>
+          <TabsTrigger value="income-expenses" className="text-xs sm:text-sm py-2">Pemasukan & Pengeluaran</TabsTrigger>
+          <TabsTrigger value="transactions" className="text-xs sm:text-sm py-2">Detail Transaksi</TabsTrigger>
+          <TabsTrigger value="products" className="text-xs sm:text-sm py-2">Analisis Produk</TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview" className="space-y-4">
@@ -274,21 +335,33 @@ export default function Finance() {
                 </div>
                 <div className="flex justify-between items-center py-2 border-b">
                   <span className="font-medium">Laba Kotor</span>
-                  <span className={`font-bold ${metrics.totalProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                    Rp {metrics.totalProfit.toLocaleString('id-ID')}
+                  <span className={`font-bold ${metrics.grossProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                    Rp {metrics.grossProfit.toLocaleString('id-ID')}
                   </span>
                 </div>
                 <div className="flex justify-between items-center py-2 border-b">
-                  <span className="font-medium">Margin Keuntungan</span>
-                  <span className="font-bold">{metrics.profitMargin.toFixed(2)}%</span>
+                  <span className="font-medium">Margin Kotor</span>
+                  <span className="font-bold">{metrics.grossMargin.toFixed(2)}%</span>
                 </div>
                 <div className="flex justify-between items-center py-2 border-b">
                   <span className="font-medium">Pemasukan Lain</span>
                   <span className="font-bold text-green-600">Rp {totalIncome.toLocaleString('id-ID')}</span>
                 </div>
-                <div className="flex justify-between items-center py-2">
+                <div className="flex justify-between items-center py-2 border-b">
                   <span className="font-medium">Pengeluaran Lain</span>
                   <span className="font-bold text-red-600">Rp {totalExpense.toLocaleString('id-ID')}</span>
+                </div>
+                <div className="flex justify-between items-center py-2 border-b">
+                  <span className="font-medium">Laba Bersih</span>
+                  <span className={`font-bold ${metrics.netProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                    Rp {metrics.netProfit.toLocaleString('id-ID')}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center py-2">
+                  <span className="font-medium">Margin Bersih</span>
+                  <span className={`font-bold ${metrics.netMargin >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                    {metrics.netMargin.toFixed(2)}%
+                  </span>
                 </div>
               </div>
             </CardContent>
@@ -625,6 +698,26 @@ export default function Finance() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Konfirmasi Hapus</DialogTitle>
+            <DialogDescription>
+              Apakah Anda yakin ingin menghapus data ini? Tindakan ini tidak dapat dibatalkan.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowDeleteDialog(false)}>
+              Batal
+            </Button>
+            <Button variant="destructive" onClick={handleConfirmDelete}>
+              Hapus
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

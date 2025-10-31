@@ -8,13 +8,12 @@ import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
-import { Search, Plus, Receipt, ShoppingCart, Trash2, Calendar, Download, Pencil } from 'lucide-react';
+import { Search, Plus, Receipt, ShoppingCart, Trash2, Calendar, Printer, Pencil } from 'lucide-react';
 import { useProducts } from '@/hooks/useProducts';
 import { useToast } from '@/hooks/use-toast';
 import { useTransactions, type TransactionItem, type Transaction } from '@/hooks/useTransactions';
 import { useEffect } from 'react';
 import { AuthGuard } from '@/components/AuthGuard';
-import jsPDF from 'jspdf';
 
 const Transactions = () => {
   const { user } = useAuth();
@@ -25,6 +24,8 @@ const Transactions = () => {
   const [showNewTransactionDialog, setShowNewTransactionDialog] = useState(false);
   const [showEditTransactionDialog, setShowEditTransactionDialog] = useState(false);
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [transactionToDelete, setTransactionToDelete] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedDateFilter, setSelectedDateFilter] = useState('all');
   const [selectedPaymentFilter, setSelectedPaymentFilter] = useState('all');
@@ -150,195 +151,257 @@ const Transactions = () => {
     return labels[method] || method;
   };
 
-  const generateReceipt = (transaction: Transaction) => {
-    const doc = new jsPDF();
-    const pageWidth = doc.internal.pageSize.getWidth();
-    
-    // Header with Autopart69 branding (no background)
-    doc.setTextColor(0, 0, 0);
-    doc.setFontSize(24);
-    doc.setFont('helvetica', 'bold');
-    doc.text('AUTOPART69', pageWidth / 2, 15, { align: 'center' });
-    
-    doc.setFontSize(11);
-    doc.setFont('helvetica', 'normal');
-    doc.text('Bengkel & Toko Sparepart', pageWidth / 2, 23, { align: 'center' });
-    
-    doc.setFontSize(9);
-    doc.text('Jl. Raya MM (Pasar Baru), Dampit', pageWidth / 2, 29, { align: 'center' });
-    doc.text('Telp: 081217177949', pageWidth / 2, 34, { align: 'center' });
-    
-    // Transaction details
-    doc.setFontSize(14);
-    doc.setFont('helvetica', 'bold');
-    doc.text('STRUK PEMBELIAN', pageWidth / 2, 48, { align: 'center' });
-    
-    doc.setFontSize(10);
-    doc.setFont('helvetica', 'normal');
-    let yPos = 58;
-    
-    doc.text(`ID Transaksi: ${transaction.id.substring(0, 8)}`, 15, yPos);
-    yPos += 7;
-    doc.text(`Tanggal: ${new Date(transaction.date).toLocaleDateString('id-ID', { 
-      day: '2-digit', 
-      month: 'long', 
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    })}`, 15, yPos);
-    yPos += 7;
-    doc.text(`Pelanggan: ${transaction.customer_name}`, 15, yPos);
-    yPos += 7;
-    doc.text(`Pembayaran: ${getPaymentMethodLabel(transaction.payment_method)}`, 15, yPos);
-    yPos += 10;
-    
-    // Line separator
-    doc.setLineWidth(0.5);
-    doc.line(15, yPos, pageWidth - 15, yPos);
-    yPos += 7;
-    
-    // Items header
-    doc.setFont('helvetica', 'bold');
-    doc.text('Item', 15, yPos);
-    doc.text('Qty', 120, yPos);
-    doc.text('Harga', 140, yPos);
-    doc.text('Total', pageWidth - 15, yPos, { align: 'right' });
-    yPos += 5;
-    
-    doc.setLineWidth(0.3);
-    doc.line(15, yPos, pageWidth - 15, yPos);
-    yPos += 7;
-    
-    // Items
-    doc.setFont('helvetica', 'normal');
-    transaction.items.forEach(item => {
-      if (yPos > 270) {
-        doc.addPage();
-        yPos = 20;
-      }
-      
-      // Truncate product name if too long
-      const maxNameLength = 40;
-      const productName = item.product_name.length > maxNameLength 
-        ? item.product_name.substring(0, maxNameLength) + '...' 
-        : item.product_name;
-      
-      doc.text(productName, 15, yPos);
-      doc.text(item.quantity.toString(), 120, yPos);
-      doc.text(formatPrice(item.price), 140, yPos);
-      doc.text(formatPrice(item.total), pageWidth - 15, yPos, { align: 'right' });
-      yPos += 7;
-    });
-    
-    yPos += 3;
-    doc.line(15, yPos, pageWidth - 15, yPos);
-    yPos += 7;
-    
-    // Subtotal
-    const subtotal = transaction.items.reduce((sum, item) => sum + item.total, 0);
-    doc.text('Subtotal Produk:', 15, yPos);
-    doc.text(formatPrice(subtotal), pageWidth - 15, yPos, { align: 'right' });
-    yPos += 7;
-    
-    // Technician fee
-    if (transaction.technician_fee > 0) {
-      doc.text('Biaya Teknisi:', 15, yPos);
-      doc.text(formatPrice(transaction.technician_fee), pageWidth - 15, yPos, { align: 'right' });
-      yPos += 7;
-    }
-    
-    // Other fees
-    if (transaction.other_fees > 0) {
-      doc.text('Biaya Lain-lain:', 15, yPos);
-      doc.text(formatPrice(transaction.other_fees), pageWidth - 15, yPos, { align: 'right' });
-      yPos += 7;
-    }
-    
-    yPos += 2;
-    doc.setLineWidth(0.5);
-    doc.line(15, yPos, pageWidth - 15, yPos);
-    yPos += 7;
-    
-    // Total
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(12);
-    doc.text('TOTAL:', 15, yPos);
-    doc.text(formatPrice(transaction.total_amount), pageWidth - 15, yPos, { align: 'right' });
-    
-    // Footer
-    yPos = doc.internal.pageSize.getHeight() - 20;
-    doc.setFontSize(10);
-    doc.setFont('helvetica', 'italic');
-    doc.setTextColor(100, 100, 100);
-    doc.text('Terima kasih atas kunjungan Anda!', pageWidth / 2, yPos, { align: 'center' });
-    doc.setFontSize(8);
-    doc.text('AUTOPART69 - Solusi Terpercaya Untuk Kendaraan Anda', pageWidth / 2, yPos + 5, { align: 'center' });
-    
-    return doc;
-  };
-
-  const handleCreateReceipt = (transaction: Transaction) => {
+  const handlePrintReceipt = (transaction: Transaction) => {
     try {
-      const doc = generateReceipt(transaction);
-      doc.save(`Struk-${transaction.id.substring(0, 8)}.pdf`);
-      
-      toast({
-        title: "Berhasil",
-        description: "Struk berhasil dibuat dan diunduh"
-      });
-    } catch (error) {
-      toast({
-        title: "Error",
-        description: "Gagal membuat struk",
-        variant: "destructive"
-      });
-    }
-  };
+      const printWindow = window.open('', '_blank');
+      if (printWindow) {
+        const subtotal = transaction.items.reduce((sum, item) => sum + item.total, 0);
+        
+        printWindow.document.write(`
+          <html>
+            <head>
+              <title>Struk Transaksi - ${transaction.customer_name}</title>
+              <style>
+                * {
+                  margin: 0;
+                  padding: 0;
+                  box-sizing: border-box;
+                }
+                body { 
+                  font-family: 'Courier New', monospace;
+                  padding: 20px;
+                  width: 80mm;
+                  margin: 0 auto;
+                }
+                .header {
+                  text-align: center;
+                  border-bottom: 2px dashed #000;
+                  padding-bottom: 10px;
+                  margin-bottom: 15px;
+                }
+                .header h1 {
+                  font-size: 24px;
+                  font-weight: bold;
+                  margin-bottom: 5px;
+                }
+                .header p {
+                  font-size: 11px;
+                  margin: 2px 0;
+                }
+                .transaction-info {
+                  font-size: 11px;
+                  margin-bottom: 15px;
+                  border-bottom: 1px dashed #000;
+                  padding-bottom: 10px;
+                }
+                .transaction-info div {
+                  margin: 3px 0;
+                }
+                .items {
+                  margin-bottom: 15px;
+                  font-size: 11px;
+                }
+                .items table {
+                  width: 100%;
+                  border-collapse: collapse;
+                }
+                .items tr {
+                  page-break-inside: avoid;
+                  break-inside: avoid;
+                }
+                .items th {
+                  text-align: left;
+                  padding: 5px 0;
+                  border-bottom: 1px solid #000;
+                  font-weight: bold;
+                }
+                .items td {
+                  padding: 5px 0;
+                }
+                .items .item-name {
+                  width: 50%;
+                }
+                .items .item-qty {
+                  width: 15%;
+                  text-align: center;
+                }
+                .items .item-price {
+                  width: 35%;
+                  text-align: right;
+                }
+                .totals {
+                  font-size: 11px;
+                  border-top: 1px dashed #000;
+                  padding-top: 10px;
+                  margin-bottom: 15px;
+                }
+                .totals div {
+                  display: flex;
+                  justify-content: space-between;
+                  margin: 5px 0;
+                }
+                .totals .grand-total {
+                  font-size: 14px;
+                  font-weight: bold;
+                  border-top: 2px solid #000;
+                  padding-top: 10px;
+                  margin-top: 10px;
+                }
+                .footer {
+                  text-align: center;
+                  font-size: 11px;
+                  border-top: 2px dashed #000;
+                  padding-top: 10px;
+                  margin-top: 15px;
+                }
+                @media print {
+                  @page { 
+                    size: 80mm auto;
+                    margin: 0;
+                  }
+                  body {
+                    padding: 10px;
+                    width: 80mm;
+                  }
+                  * {
+                    page-break-inside: avoid;
+                    break-inside: avoid;
+                  }
+                  .header, .transaction-info, .items, .totals, .footer {
+                    page-break-inside: avoid;
+                    break-inside: avoid;
+                  }
+                  table, tr, td, th {
+                    page-break-inside: avoid;
+                    break-inside: avoid;
+                  }
+                }
+              </style>
+            </head>
+            <body>
+              <div class="header">
+                <h1>AUTOPART69</h1>
+                <p>Bengkel & Toko Sparepart</p>
+                <p>Jl. Raya MM (Pasar Baru), Dampit</p>
+                <p>Telp: 081217177949</p>
+              </div>
 
-  const handleShareReceipt = async (transaction: Transaction) => {
-    try {
-      const doc = generateReceipt(transaction);
-      const pdfBlob = doc.output('blob');
-      const pdfFile = new File([pdfBlob], `Struk-${transaction.id.substring(0, 8)}.pdf`, { type: 'application/pdf' });
-      
-      // Check if Web Share API is supported
-      if (navigator.share && navigator.canShare({ files: [pdfFile] })) {
-        await navigator.share({
-          title: `Struk Transaksi - ${transaction.customer_name}`,
-          text: `Struk pembelian dari Autopart69\nTotal: ${formatPrice(transaction.total_amount)}`,
-          files: [pdfFile]
-        });
+              <div class="transaction-info">
+                <div><strong>STRUK PEMBELIAN</strong></div>
+                <div>ID: ${transaction.id.substring(0, 8)}</div>
+                <div>Tanggal: ${new Date(transaction.date).toLocaleDateString('id-ID', { 
+                  day: '2-digit', 
+                  month: 'long', 
+                  year: 'numeric',
+                  hour: '2-digit',
+                  minute: '2-digit'
+                })}</div>
+                <div>Pelanggan: ${transaction.customer_name}</div>
+                <div>Pembayaran: ${getPaymentMethodLabel(transaction.payment_method)}</div>
+              </div>
+
+              <div class="items">
+                <table>
+                  <thead>
+                    <tr>
+                      <th class="item-name">Item</th>
+                      <th class="item-qty">Qty</th>
+                      <th class="item-price">Total</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    ${transaction.items.map(item => `
+                      <tr>
+                        <td class="item-name">${item.product_name}</td>
+                        <td class="item-qty">${item.quantity}x</td>
+                        <td class="item-price">${formatPrice(item.total)}</td>
+                      </tr>
+                      <tr>
+                        <td colspan="3" style="font-size: 10px; color: #666;">@ ${formatPrice(item.price)}</td>
+                      </tr>
+                    `).join('')}
+                  </tbody>
+                </table>
+              </div>
+
+              <div class="totals">
+                <div>
+                  <span>Subtotal Produk:</span>
+                  <span>${formatPrice(subtotal)}</span>
+                </div>
+                ${transaction.technician_fee > 0 ? `
+                  <div>
+                    <span>Biaya Teknisi:</span>
+                    <span>${formatPrice(transaction.technician_fee)}</span>
+                  </div>
+                ` : ''}
+                ${transaction.other_fees > 0 ? `
+                  <div>
+                    <span>Biaya Lain-lain:</span>
+                    <span>${formatPrice(transaction.other_fees)}</span>
+                  </div>
+                ` : ''}
+                <div class="grand-total">
+                  <span>TOTAL:</span>
+                  <span>${formatPrice(transaction.total_amount)}</span>
+                </div>
+              </div>
+
+              <div class="footer">
+                <p>Terima kasih atas kunjungan Anda!</p>
+                <p>AUTOPART69 - Solusi Terpercaya Untuk Kendaraan Anda</p>
+              </div>
+
+              <script>
+                window.onload = function() {
+                  window.print();
+                  window.onafterprint = function() {
+                    window.close();
+                  };
+                };
+              </script>
+            </body>
+          </html>
+        `);
+        printWindow.document.close();
         
         toast({
           title: "Berhasil",
-          description: "Struk berhasil dibagikan"
+          description: "Membuka dialog cetak struk"
         });
       } else {
-        // Fallback: Download the file
-        doc.save(`Struk-${transaction.id.substring(0, 8)}.pdf`);
-        
         toast({
           title: "Info",
-          description: "Fitur berbagi tidak didukung. Struk telah diunduh.",
+          description: "Pop-up diblokir. Silakan izinkan pop-up untuk mencetak.",
         });
       }
     } catch (error) {
       toast({
         title: "Error",
-        description: "Gagal membagikan struk",
+        description: "Gagal mencetak struk",
         variant: "destructive"
       });
     }
   };
 
-  const handleDeleteTransaction = async (transactionId: string) => {
-    const result = await deleteTransaction(transactionId);
+  const handleDeleteTransaction = async () => {
+    if (!transactionToDelete) return;
+    
+    const result = await deleteTransaction(transactionToDelete);
     if (result?.success) {
       toast({
         title: "Berhasil",
         description: "Transaksi berhasil dihapus"
       });
     }
+    
+    setShowDeleteDialog(false);
+    setTransactionToDelete(null);
+  };
+
+  const openDeleteDialog = (transactionId: string) => {
+    setTransactionToDelete(transactionId);
+    setShowDeleteDialog(true);
   };
 
   const addItemToTransaction = () => {
@@ -951,7 +1014,11 @@ const Transactions = () => {
                   <TableBody>
                     {filteredTransactions.map((transaction) => (
                       <TableRow key={transaction.id}>
-                        <TableCell className="font-mono">{transaction.id}</TableCell>
+                        <TableCell>
+                          <div className="font-mono text-sm line-clamp-1 max-w-[150px]">
+                            {transaction.id}
+                          </div>
+                        </TableCell>
                         <TableCell>
                           <div className="flex items-center gap-2">
                             <Calendar className="h-4 w-4" />
@@ -974,13 +1041,10 @@ const Transactions = () => {
                           </Badge>
                         </TableCell>
                         <TableCell>
-                          <div className="text-sm">
-                            {transaction.items.map((item, index) => (
-                              <div key={item.id}>
-                                {item.product_name} ({item.quantity}x)
-                                {index < transaction.items.length - 1 && <br />}
-                              </div>
-                            ))}
+                          <div className="text-sm line-clamp-2 max-w-[200px]">
+                            {transaction.items
+                              .map((item) => `${item.product_name} (${item.quantity}x)`)
+                              .join(', ')}
                           </div>
                         </TableCell>
                         <TableCell>
@@ -996,15 +1060,15 @@ const Transactions = () => {
                             <Button
                               size="sm"
                               variant="outline"
-                              onClick={() => handleShareReceipt(transaction)}
-                              title="Unduh Struk"
+                              onClick={() => handlePrintReceipt(transaction)}
+                              title="Print Struk"
                             >
-                              <Download className="h-4 w-4" />
+                              <Printer className="h-4 w-4" />
                             </Button>
                             <Button
                               size="sm"
                               variant="destructive"
-                              onClick={() => handleDeleteTransaction(transaction.id)}
+                              onClick={() => openDeleteDialog(transaction.id)}
                               title="Hapus Transaksi"
                             >
                               <Trash2 className="h-4 w-4" />
@@ -1019,6 +1083,26 @@ const Transactions = () => {
             </CardContent>
           </Card>
         </main>
+
+        {/* Delete Confirmation Dialog */}
+        <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Konfirmasi Hapus Transaksi</DialogTitle>
+              <DialogDescription>
+                Apakah Anda yakin ingin menghapus transaksi ini? Tindakan ini tidak dapat dibatalkan dan stok produk akan dikembalikan.
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setShowDeleteDialog(false)}>
+                Batal
+              </Button>
+              <Button variant="destructive" onClick={handleDeleteTransaction}>
+                Hapus
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </AuthGuard>
   );
