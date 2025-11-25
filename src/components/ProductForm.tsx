@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Product } from '@/hooks/useProducts';
-import { Scan, Upload, X } from 'lucide-react';
+import { Scan, Upload, X, Camera } from 'lucide-react';
 
 interface ProductFormProps {
   open: boolean;
@@ -177,18 +177,47 @@ const ProductForm = ({ open, onOpenChange, onSubmit, product, title }: ProductFo
                   </Button>
                 </div>
               ) : (
-                <div className="border-2 border-dashed rounded-lg p-4 text-center">
-                  <Upload className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
-                  <Label htmlFor="image-upload" className="cursor-pointer text-sm text-muted-foreground hover:text-foreground">
-                    Klik untuk upload foto
-                  </Label>
-                  <Input
-                    id="image-upload"
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    onChange={handleImageChange}
-                  />
+                <div className="border-2 border-dashed rounded-lg p-4">
+                  <div className="flex flex-col gap-2">
+                    <Label htmlFor="camera-upload" className="cursor-pointer">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="w-full"
+                        onClick={() => document.getElementById('camera-upload')?.click()}
+                      >
+                        <Camera className="h-4 w-4 mr-2" />
+                        Ambil Foto
+                      </Button>
+                    </Label>
+                    <Input
+                      id="camera-upload"
+                      type="file"
+                      accept="image/*"
+                      capture="environment"
+                      className="hidden"
+                      onChange={handleImageChange}
+                    />
+                    
+                    <Label htmlFor="image-upload" className="cursor-pointer">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="w-full"
+                        onClick={() => document.getElementById('image-upload')?.click()}
+                      >
+                        <Upload className="h-4 w-4 mr-2" />
+                        Pilih dari Galeri
+                      </Button>
+                    </Label>
+                    <Input
+                      id="image-upload"
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={handleImageChange}
+                    />
+                  </div>
                 </div>
               )}
             </div>

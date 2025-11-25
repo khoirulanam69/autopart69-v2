@@ -206,12 +206,6 @@ export const useProducts = () => {
         .select('*')
         .order('created_at', { ascending: false });
 
-      if (query) {
-        queryBuilder = queryBuilder.or(
-          `name.ilike.%${query}%,barcode.ilike.%${query}%`
-        );
-      }
-
       if (category && category !== 'all') {
         queryBuilder = queryBuilder.eq('category', category as Product['category']);
       }
@@ -219,7 +213,22 @@ export const useProducts = () => {
       const { data, error } = await queryBuilder;
 
       if (error) throw error;
-      setProducts(data || []);
+
+      // Filter products with flexible keyword matching
+      let filteredData = data || [];
+      if (query && query.trim()) {
+        // Split query into individual words and filter out empty strings
+        const keywords = query.toLowerCase().trim().split(/\s+/).filter(word => word.length > 0);
+        
+        // Filter products that contain all keywords in name or barcode
+        filteredData = filteredData.filter(product => {
+          const searchText = `${product.name} ${product.barcode || ''}`.toLowerCase();
+          // Check if all keywords exist in the search text
+          return keywords.every(keyword => searchText.includes(keyword));
+        });
+      }
+
+      setProducts(filteredData);
     } catch (error: any) {
       toast({
         title: "Error",
