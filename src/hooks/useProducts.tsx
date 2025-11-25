@@ -37,15 +37,15 @@ export const useProducts = () => {
       
       setProducts(data || []);
       
-      // Check for low stock products
-      const lowStock = (data || []).filter(product => product.stock < 2);
-      setLowStockProducts(lowStock);
+      // Check for empty stock products
+      const emptyStock = (data || []).filter(product => product.stock === 0);
+      setLowStockProducts(emptyStock);
       
-      // Show toast notification if there are low stock items
-      if (lowStock.length > 0) {
+      // Show toast notification if there are empty stock items
+      if (emptyStock.length > 0) {
         toast({
-          title: "⚠️ Peringatan Stok Rendah",
-          description: `${lowStock.length} produk memiliki stok kurang dari 2`,
+          title: "⚠️ Peringatan Stok Kosong",
+          description: `${emptyStock.length} produk memiliki stok kosong`,
           variant: "destructive",
         });
       }
