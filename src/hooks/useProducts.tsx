@@ -71,15 +71,6 @@ export const useProducts = () => {
         
         const emptyStock = allProducts || [];
         setLowStockProducts(emptyStock);
-        
-        // Show toast notification if there are empty stock items
-        if (emptyStock.length > 0) {
-          toast({
-            title: "⚠️ Peringatan Stok Kosong",
-            description: `${emptyStock.length} produk memiliki stok kosong`,
-            variant: "destructive",
-          });
-        }
       }
     } catch (error: any) {
       toast({
