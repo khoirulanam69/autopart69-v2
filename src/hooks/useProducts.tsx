@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from './useAuth';
+import { compressImage } from '@/lib/imageCompression';
 
 export interface Product {
   id: string;
@@ -22,32 +23,63 @@ export const useProducts = () => {
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [lowStockProducts, setLowStockProducts] = useState<Product[]>([]);
+  const [hasMore, setHasMore] = useState(true);
+  const [page, setPage] = useState(0);
+  const [totalCount, setTotalCount] = useState(0);
   const { toast } = useToast();
   const { user } = useAuth();
 
-  const fetchProducts = async () => {
+  const PAGE_SIZE = 20; // Load 20 products at a time
+
+  const fetchProducts = async (resetData = false) => {
     try {
       setLoading(true);
-      const { data, error } = await supabase
+      const currentPage = resetData ? 0 : page;
+      const from = currentPage * PAGE_SIZE;
+      const to = from + PAGE_SIZE - 1;
+
+      const { data, error, count } = await supabase
         .from('products')
-        .select('*')
-        .order('created_at', { ascending: false });
+        .select('*', { count: 'exact' })
+        .order('created_at', { ascending: false })
+        .range(from, to);
 
       if (error) throw error;
       
-      setProducts(data || []);
+      const newProducts = data || [];
       
-      // Check for empty stock products
-      const emptyStock = (data || []).filter(product => product.stock === 0);
-      setLowStockProducts(emptyStock);
+      // Update total count
+      setTotalCount(count || 0);
       
-      // Show toast notification if there are empty stock items
-      if (emptyStock.length > 0) {
-        toast({
-          title: "⚠️ Peringatan Stok Kosong",
-          description: `${emptyStock.length} produk memiliki stok kosong`,
-          variant: "destructive",
-        });
+      if (resetData) {
+        setProducts(newProducts);
+        setPage(1);
+      } else {
+        setProducts(prev => [...prev, ...newProducts]);
+        setPage(prev => prev + 1);
+      }
+      
+      // Check if there are more products to load
+      setHasMore(newProducts.length === PAGE_SIZE && (count || 0) > to + 1);
+      
+      // Check for empty stock products (only on initial load)
+      if (resetData) {
+        const { data: allProducts } = await supabase
+          .from('products')
+          .select('*')
+          .eq('stock', 0);
+        
+        const emptyStock = allProducts || [];
+        setLowStockProducts(emptyStock);
+        
+        // Show toast notification if there are empty stock items
+        if (emptyStock.length > 0) {
+          toast({
+            title: "⚠️ Peringatan Stok Kosong",
+            description: `${emptyStock.length} produk memiliki stok kosong`,
+            variant: "destructive",
+          });
+        }
       }
     } catch (error: any) {
       toast({
@@ -60,15 +92,36 @@ export const useProducts = () => {
     }
   };
 
+  const deleteProductImage = async (imageUrl: string) => {
+    try {
+      // Extract file path from URL
+      const urlParts = imageUrl.split('/product-images/');
+      if (urlParts.length < 2) return;
+      
+      const filePath = urlParts[1];
+      
+      const { error } = await supabase.storage
+        .from('product-images')
+        .remove([filePath]);
+      
+      if (error) throw error;
+    } catch (error: any) {
+      console.error('Error deleting image:', error);
+    }
+  };
+
   const uploadProductImage = async (file: File, productId: string) => {
     try {
-      const fileExt = file.name.split('.').pop();
+      // Compress image before upload
+      const compressedFile = await compressImage(file);
+      
+      const fileExt = compressedFile.name.split('.').pop();
       const fileName = `${productId}-${Date.now()}.${fileExt}`;
       const filePath = `${fileName}`;
 
       const { error: uploadError } = await supabase.storage
         .from('product-images')
-        .upload(filePath, file, {
+        .upload(filePath, compressedFile, {
           cacheControl: '3600',
           upsert: true
         });
@@ -140,6 +193,14 @@ export const useProducts = () => {
     try {
       // Upload image if provided
       if (imageFile) {
+        // Get current product to check for existing image
+        const currentProduct = products.find(p => p.id === id);
+        
+        // Delete old image if it exists
+        if (currentProduct?.image_url) {
+          await deleteProductImage(currentProduct.image_url);
+        }
+        
         const { url, error: uploadError } = await uploadProductImage(imageFile, id);
         if (url && !uploadError) {
           productData.image_url = url;
@@ -203,7 +264,7 @@ export const useProducts = () => {
       setLoading(true);
       let queryBuilder = supabase
         .from('products')
-        .select('*')
+        .select('*', { count: 'exact' })
         .order('created_at', { ascending: false });
 
       if (category && category !== 'all') {
@@ -229,6 +290,8 @@ export const useProducts = () => {
       }
 
       setProducts(filteredData);
+      setPage(0);
+      setHasMore(false); // Disable infinite scroll for search results
     } catch (error: any) {
       toast({
         title: "Error",
@@ -240,9 +303,15 @@ export const useProducts = () => {
     }
   };
 
+  const loadMore = () => {
+    if (!loading && hasMore) {
+      fetchProducts(false);
+    }
+  };
+
   useEffect(() => {
     if (user) {
-      fetchProducts();
+      fetchProducts(true);
     }
   }, [user]);
 
@@ -250,10 +319,13 @@ export const useProducts = () => {
     products,
     lowStockProducts,
     loading,
+    hasMore,
+    totalCount,
     createProduct,
     updateProduct,
     deleteProduct,
     searchProducts,
-    fetchProducts
+    fetchProducts,
+    loadMore
   };
 };

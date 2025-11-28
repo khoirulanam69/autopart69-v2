@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
+import { useVirtualizer } from '@tanstack/react-virtual';
 import { useProducts, Product } from '@/hooks/useProducts';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -7,9 +8,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
-import { Search, Plus, Edit, Trash2, Package, Printer, AlertTriangle } from 'lucide-react';
+import { Search, Plus, Edit, Trash2, Package, Printer, AlertTriangle, Loader2 } from 'lucide-react';
 import ProductForm from '@/components/ProductForm';
 import { AuthGuard } from '@/components/AuthGuard';
+import { LazyImage } from '@/components/LazyImage';
 
 const CATEGORIES = [
   { value: 'all', label: 'Semua Kategori' },
@@ -23,13 +25,46 @@ const CATEGORIES = [
 ];
 
 const Products = () => {
-  const { products, lowStockProducts, loading, createProduct, updateProduct, deleteProduct, searchProducts } = useProducts();
+  const { products, lowStockProducts, loading, hasMore, createProduct, updateProduct, deleteProduct, searchProducts, loadMore } = useProducts();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [showForm, setShowForm] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [isSearching, setIsSearching] = useState(false);
+  
+  const parentRef = useRef<HTMLDivElement>(null);
+
+  // Calculate 3 columns layout
+  const columnCount = 3;
+  const rowCount = Math.ceil(products.length / columnCount);
+
+  const rowVirtualizer = useVirtualizer({
+    count: rowCount,
+    getScrollElement: () => parentRef.current,
+    estimateSize: () => 400, // Estimated row height
+    overscan: 2, // Number of rows to render outside viewport
+  });
+
+  // Detect when user scrolls near bottom for infinite loading
+  useEffect(() => {
+    const element = parentRef.current;
+    if (!element) return;
+
+    const handleScroll = () => {
+      const { scrollTop, scrollHeight, clientHeight } = element;
+      const isNearBottom = scrollTop + clientHeight >= scrollHeight - 400;
+      
+      if (isNearBottom && !loading && hasMore && !isSearching) {
+        loadMore();
+      }
+    };
+
+    element.addEventListener('scroll', handleScroll);
+    return () => element.removeEventListener('scroll', handleScroll);
+  }, [loading, hasMore, loadMore, isSearching]);
 
   const handleSearch = () => {
+    setIsSearching(true);
     searchProducts(searchQuery, selectedCategory);
   };
 
@@ -192,114 +227,149 @@ const Products = () => {
             </div>
           </div>
 
-          {/* Products Grid */}
-          {loading ? (
-            <div className="text-center py-8">
-              <p className="text-muted-foreground">Loading...</p>
-            </div>
-          ) : products.length === 0 ? (
+          {/* Virtualized Products Grid */}
+          {products.length === 0 && !loading ? (
             <div className="text-center py-8">
               <Package className="h-16 w-16 mx-auto text-muted-foreground mb-4" />
               <p className="text-muted-foreground">Belum ada produk</p>
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {products.map((product) => (
-                <Card key={product.id} className="h-fit">
-                  {product.image_url && (
-                    <div className="w-full h-48 overflow-hidden">
-                      <img 
-                        src={product.image_url} 
-                        alt={product.name}
-                        className="w-full h-full object-cover"
-                      />
-                    </div>
-                  )}
-                  <CardHeader>
-                    <div className="flex justify-between items-start">
-                      <div className="flex-1">
-                        <CardTitle className="text-lg">{product.name}</CardTitle>
-                        <CardDescription className="mt-1">
-                          {CATEGORIES.find(cat => cat.value === product.category)?.label}
-                        </CardDescription>
-                      </div>
-                      <div className="flex gap-1 ml-2">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => handlePrintBarcode(product)}
-                          title="Print Barcode"
-                        >
-                          <Printer className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => handleEditProduct(product)}
-                        >
-                          <Edit className="h-4 w-4" />
-                        </Button>
-                        <AlertDialog>
-                          <AlertDialogTrigger asChild>
-                            <Button size="sm" variant="outline">
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </AlertDialogTrigger>
-                          <AlertDialogContent>
-                            <AlertDialogHeader>
-                              <AlertDialogTitle>Hapus Produk</AlertDialogTitle>
-                              <AlertDialogDescription>
-                                Apakah Anda yakin ingin menghapus produk "{product.name}"? 
-                                Tindakan ini tidak dapat dibatalkan.
-                              </AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <AlertDialogFooter>
-                              <AlertDialogCancel>Batal</AlertDialogCancel>
-                              <AlertDialogAction
-                                onClick={() => handleDeleteProduct(product.id)}
-                                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                              >
-                                Hapus
-                              </AlertDialogAction>
-                            </AlertDialogFooter>
-                          </AlertDialogContent>
-                        </AlertDialog>
-                      </div>
-                    </div>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-3">
-                      <div className="flex items-center justify-between">
-                        <Badge className={getCategoryBadgeColor(product.category)}>
-                          Stok: {product.stock}
-                        </Badge>
-                        <div className="text-right">
-                          <div className="text-lg font-semibold">
-                            {formatPrice(product.price)}
-                          </div>
-                          <div className="text-sm text-muted-foreground">
-                            Beli: {formatPrice(product.purchase_price)}
-                          </div>
-                        </div>
-                      </div>
+            <div
+              ref={parentRef}
+              className="h-[calc(100vh-280px)] overflow-auto"
+              style={{ contain: 'strict' }}
+            >
+              <div
+                style={{
+                  height: `${rowVirtualizer.getTotalSize()}px`,
+                  width: '100%',
+                  position: 'relative',
+                }}
+              >
+                {rowVirtualizer.getVirtualItems().map((virtualRow) => {
+                  const startIndex = virtualRow.index * columnCount;
+                  const rowProducts = products.slice(startIndex, startIndex + columnCount);
 
-                      {product.supplier && (
-                        <div className="text-sm">
-                          <span className="text-muted-foreground">Supplier:</span>
-                          <span className="ml-1">{product.supplier}</span>
-                        </div>
-                      )}
+                  return (
+                    <div
+                      key={virtualRow.key}
+                      style={{
+                        position: 'absolute',
+                        top: 0,
+                        left: 0,
+                        width: '100%',
+                        transform: `translateY(${virtualRow.start}px)`,
+                      }}
+                    >
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 px-1">
+                        {rowProducts.map((product) => (
+                          <Card key={product.id} className="h-fit hover:shadow-lg transition-shadow">
+                            {product.image_url && (
+                              <LazyImage
+                                src={product.image_url}
+                                alt={product.name}
+                                className="w-full h-48"
+                              />
+                            )}
+                            <CardHeader className="pb-3">
+                              <div className="flex justify-between items-start gap-2">
+                                <div className="flex-1 min-w-0">
+                                  <CardTitle className="text-base line-clamp-2">{product.name}</CardTitle>
+                                  <CardDescription className="mt-1 text-xs">
+                                    {CATEGORIES.find(cat => cat.value === product.category)?.label}
+                                  </CardDescription>
+                                </div>
+                                <div className="flex gap-1 shrink-0">
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    onClick={() => handlePrintBarcode(product)}
+                                    title="Print Barcode"
+                                    className="h-8 w-8 p-0"
+                                  >
+                                    <Printer className="h-3.5 w-3.5" />
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    onClick={() => handleEditProduct(product)}
+                                    className="h-8 w-8 p-0"
+                                  >
+                                    <Edit className="h-3.5 w-3.5" />
+                                  </Button>
+                                  <AlertDialog>
+                                    <AlertDialogTrigger asChild>
+                                      <Button size="sm" variant="ghost" className="h-8 w-8 p-0">
+                                        <Trash2 className="h-3.5 w-3.5" />
+                                      </Button>
+                                    </AlertDialogTrigger>
+                                    <AlertDialogContent>
+                                      <AlertDialogHeader>
+                                        <AlertDialogTitle>Hapus Produk</AlertDialogTitle>
+                                        <AlertDialogDescription>
+                                          Apakah Anda yakin ingin menghapus produk "{product.name}"? 
+                                          Tindakan ini tidak dapat dibatalkan.
+                                        </AlertDialogDescription>
+                                      </AlertDialogHeader>
+                                      <AlertDialogFooter>
+                                        <AlertDialogCancel>Batal</AlertDialogCancel>
+                                        <AlertDialogAction
+                                          onClick={() => handleDeleteProduct(product.id)}
+                                          className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                        >
+                                          Hapus
+                                        </AlertDialogAction>
+                                      </AlertDialogFooter>
+                                    </AlertDialogContent>
+                                  </AlertDialog>
+                                </div>
+                              </div>
+                            </CardHeader>
+                            <CardContent className="pt-0">
+                              <div className="space-y-2">
+                                <div className="flex items-center justify-between">
+                                  <Badge className={getCategoryBadgeColor(product.category)} variant="secondary">
+                                    Stok: {product.stock}
+                                  </Badge>
+                                  <div className="text-right">
+                                    <div className="text-base font-bold">
+                                      {formatPrice(product.price)}
+                                    </div>
+                                    <div className="text-xs text-muted-foreground">
+                                      Beli: {formatPrice(product.purchase_price)}
+                                    </div>
+                                  </div>
+                                </div>
 
-                      {product.barcode && (
-                        <div className="text-sm">
-                          <span className="text-muted-foreground">Barcode:</span>
-                          <span className="ml-1 font-mono">{product.barcode}</span>
-                        </div>
-                      )}
+                                {product.supplier && (
+                                  <div className="text-xs">
+                                    <span className="text-muted-foreground">Supplier:</span>
+                                    <span className="ml-1">{product.supplier}</span>
+                                  </div>
+                                )}
+
+                                {product.barcode && (
+                                  <div className="text-xs">
+                                    <span className="text-muted-foreground">Barcode:</span>
+                                    <span className="ml-1 font-mono">{product.barcode}</span>
+                                  </div>
+                                )}
+                              </div>
+                            </CardContent>
+                          </Card>
+                        ))}
+                      </div>
                     </div>
-                  </CardContent>
-                </Card>
-              ))}
+                  );
+                })}
+              </div>
+              
+              {/* Loading indicator for infinite scroll */}
+              {loading && hasMore && (
+                <div className="flex justify-center py-8">
+                  <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                </div>
+              )}
             </div>
           )}
         </main>
