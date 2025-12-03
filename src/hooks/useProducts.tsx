@@ -21,6 +21,7 @@ export interface Product {
 
 export const useProducts = () => {
   const [products, setProducts] = useState<Product[]>([]);
+  const [allProducts, setAllProducts] = useState<Product[]>([]); // For transactions - all products loaded
   const [loading, setLoading] = useState(true);
   const [lowStockProducts, setLowStockProducts] = useState<Product[]>([]);
   const [hasMore, setHasMore] = useState(true);
@@ -300,14 +301,34 @@ export const useProducts = () => {
     }
   };
 
+  // Fetch all products without pagination - for transactions
+  const fetchAllProducts = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('products')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      
+      setAllProducts(data || []);
+      return { data: data || [], error: null };
+    } catch (error: any) {
+      console.error('Error fetching all products:', error);
+      return { data: [], error };
+    }
+  };
+
   useEffect(() => {
     if (user) {
       fetchProducts(true);
+      fetchAllProducts(); // Also fetch all products for transactions
     }
   }, [user]);
 
   return {
     products,
+    allProducts,
     lowStockProducts,
     loading,
     hasMore,
@@ -317,6 +338,7 @@ export const useProducts = () => {
     deleteProduct,
     searchProducts,
     fetchProducts,
-    loadMore
+    loadMore,
+    fetchAllProducts
   };
 };

@@ -17,7 +17,7 @@ import { AuthGuard } from '@/components/AuthGuard';
 
 const Transactions = () => {
   const { user } = useAuth();
-  const { products } = useProducts();
+  const { allProducts } = useProducts(); // Use allProducts instead of products for full access
   const { toast } = useToast();
   const { transactions, loading, createTransaction: createTransactionInDB, updateTransaction: updateTransactionInDB, deleteTransaction } = useTransactions();
   
@@ -108,8 +108,8 @@ const Transactions = () => {
   }, [showNewTransactionDialog, showEditTransactionDialog]);
 
   const handleBarcodeScanned = (barcode: string) => {
-    // Find product by barcode
-    const product = products.find(p => p.barcode === barcode);
+    // Find product by barcode from allProducts
+    const product = allProducts.find(p => p.barcode === barcode);
     
     if (product) {
       setSelectedProduct(product.id);
@@ -405,7 +405,7 @@ const Transactions = () => {
   };
 
   const addItemToTransaction = () => {
-    const product = products.find(p => p.id === selectedProduct);
+    const product = allProducts.find(p => p.id === selectedProduct);
     if (!product) {
       toast({
         title: "Error",
@@ -668,7 +668,7 @@ const Transactions = () => {
                               <SelectValue placeholder="Pilih produk" />
                             </SelectTrigger>
                             <SelectContent>
-                              {products.map(product => (
+                              {allProducts.map(product => (
                                 <SelectItem key={product.id} value={product.id}>
                                   {product.name} - {formatPrice(product.price)}
                                 </SelectItem>
@@ -828,7 +828,7 @@ const Transactions = () => {
                               <SelectValue placeholder="Pilih produk" />
                             </SelectTrigger>
                             <SelectContent>
-                              {products.map(product => (
+                              {allProducts.map(product => (
                                 <SelectItem key={product.id} value={product.id}>
                                   {product.name} - {formatPrice(product.price)}
                                 </SelectItem>

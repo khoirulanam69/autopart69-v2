@@ -27,22 +27,37 @@ const CATEGORIES = [
 const Products = () => {
   const { products, loading, hasMore, createProduct, updateProduct, deleteProduct, searchProducts, loadMore } = useProducts();
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState('all');
   const [showForm, setShowForm] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [isSearching, setIsSearching] = useState(false);
+  const [columnCount, setColumnCount] = useState(1);
   
   const parentRef = useRef<HTMLDivElement>(null);
 
-  // Calculate 3 columns layout
-  const columnCount = 3;
+  // Responsive column count based on screen size
+  useEffect(() => {
+    const updateColumnCount = () => {
+      if (window.innerWidth >= 1024) {
+        setColumnCount(3); // lg breakpoint
+      } else if (window.innerWidth >= 768) {
+        setColumnCount(2); // md breakpoint
+      } else {
+        setColumnCount(1); // mobile
+      }
+    };
+
+    updateColumnCount();
+    window.addEventListener('resize', updateColumnCount);
+    return () => window.removeEventListener('resize', updateColumnCount);
+  }, []);
+
   const rowCount = Math.ceil(products.length / columnCount);
 
   const rowVirtualizer = useVirtualizer({
     count: rowCount,
     getScrollElement: () => parentRef.current,
-    estimateSize: () => 400, // Estimated row height
-    overscan: 2, // Number of rows to render outside viewport
+    estimateSize: () => 415,
+    overscan: 2,
   });
 
   // Detect when user scrolls near bottom for infinite loading
@@ -65,7 +80,7 @@ const Products = () => {
 
   const handleSearch = () => {
     setIsSearching(true);
-    searchProducts(searchQuery, selectedCategory);
+    searchProducts(searchQuery);
   };
 
   const handleCreateProduct = async (data: any, imageFile?: File) => {
@@ -158,25 +173,25 @@ const Products = () => {
 
   return (
     <AuthGuard requireAuth={true}>
-      <div className="min-h-screen bg-background">
-        <header className="border-b border-border bg-card">
-          <div className="container mx-auto px-4 py-4">
-            <div className="flex items-center justify-between">
+      <div className="h-screen bg-background flex flex-col overflow-hidden">
+        <header className="border-b border-border bg-card shrink-0">
+          <div className="container mx-auto px-3 sm:px-4 py-3 sm:py-4">
+            <div className="flex items-center justify-between gap-2">
               <div className="flex items-center gap-2">
-                <Package className="h-6 w-6" />
-                <h1 className="text-2xl font-bold">Management Produk</h1>
+                <Package className="h-5 w-5 sm:h-6 sm:w-6" />
+                <h1 className="text-lg sm:text-2xl font-bold">Management Produk</h1>
               </div>
-              <Button onClick={() => setShowForm(true)}>
-                <Plus className="h-4 w-4 mr-2" />
-                Tambah Produk
+              <Button onClick={() => setShowForm(true)} size="sm" className="sm:h-10">
+                <Plus className="h-4 w-4 sm:mr-2" />
+                <span className="hidden sm:inline">Tambah Produk</span>
               </Button>
             </div>
           </div>
         </header>
 
-        <main className="container mx-auto px-4 py-6">
-          {/* Search and Filter */}
-          <div className="flex flex-col sm:flex-row gap-4 mb-6">
+        <main className="container mx-auto px-3 sm:px-4 pt-4 sm:pt-6 flex-1 flex flex-col overflow-hidden">
+          {/* Search */}
+          <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 mb-4 sm:mb-6 shrink-0">
             <div className="flex-1 flex gap-2">
               <div className="relative flex-1">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -188,19 +203,7 @@ const Products = () => {
                   onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
                 />
               </div>
-              <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-                <SelectTrigger className="w-48">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {CATEGORIES.map(cat => (
-                    <SelectItem key={cat.value} value={cat.value}>
-                      {cat.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Button onClick={handleSearch}>Cari</Button>
+              <Button onClick={handleSearch} size="sm" className="sm:h-10">Cari</Button>
             </div>
           </div>
 
@@ -213,7 +216,7 @@ const Products = () => {
           ) : (
             <div
               ref={parentRef}
-              className="h-[calc(100vh-280px)] overflow-auto"
+              className="flex-1 overflow-auto"
               style={{ contain: 'strict' }}
             >
               <div
@@ -238,49 +241,49 @@ const Products = () => {
                         transform: `translateY(${virtualRow.start}px)`,
                       }}
                     >
-                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 px-1">
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 px-1">
                         {rowProducts.map((product) => (
                           <Card key={product.id} className="h-fit hover:shadow-lg transition-shadow">
                             {product.image_url && (
                               <LazyImage
                                 src={product.image_url}
                                 alt={product.name}
-                                className="w-full h-48"
+                                className="w-full h-40 sm:h-48 object-cover"
                               />
                             )}
-                            <CardHeader className="pb-3">
+                            <CardHeader className="pb-2 sm:pb-3 px-3 sm:px-6 pt-3 sm:pt-6">
                               <div className="flex justify-between items-start gap-2">
                                 <div className="flex-1 min-w-0">
-                                  <CardTitle className="text-base line-clamp-2">{product.name}</CardTitle>
+                                  <CardTitle className="text-sm sm:text-base line-clamp-2">{product.name}</CardTitle>
                                   <CardDescription className="mt-1 text-xs">
                                     {CATEGORIES.find(cat => cat.value === product.category)?.label}
                                   </CardDescription>
                                 </div>
-                                <div className="flex gap-1 shrink-0">
+                                <div className="flex gap-0.5 sm:gap-1 shrink-0">
                                   <Button
                                     size="sm"
                                     variant="ghost"
                                     onClick={() => handlePrintBarcode(product)}
                                     title="Print Barcode"
-                                    className="h-8 w-8 p-0"
+                                    className="h-7 w-7 sm:h-8 sm:w-8 p-0"
                                   >
-                                    <Printer className="h-3.5 w-3.5" />
+                                    <Printer className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
                                   </Button>
                                   <Button
                                     size="sm"
                                     variant="ghost"
                                     onClick={() => handleEditProduct(product)}
-                                    className="h-8 w-8 p-0"
+                                    className="h-7 w-7 sm:h-8 sm:w-8 p-0"
                                   >
-                                    <Edit className="h-3.5 w-3.5" />
+                                    <Edit className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
                                   </Button>
                                   <AlertDialog>
                                     <AlertDialogTrigger asChild>
-                                      <Button size="sm" variant="ghost" className="h-8 w-8 p-0">
-                                        <Trash2 className="h-3.5 w-3.5" />
+                                      <Button size="sm" variant="ghost" className="h-7 w-7 sm:h-8 sm:w-8 p-0">
+                                        <Trash2 className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
                                       </Button>
                                     </AlertDialogTrigger>
-                                    <AlertDialogContent>
+                                    <AlertDialogContent className="max-w-[90vw] sm:max-w-lg">
                                       <AlertDialogHeader>
                                         <AlertDialogTitle>Hapus Produk</AlertDialogTitle>
                                         <AlertDialogDescription>
@@ -302,14 +305,14 @@ const Products = () => {
                                 </div>
                               </div>
                             </CardHeader>
-                            <CardContent className="pt-0">
-                              <div className="space-y-2">
-                                <div className="flex items-center justify-between">
-                                  <Badge className={getCategoryBadgeColor(product.category)} variant="secondary">
+                            <CardContent className="pt-0 px-3 sm:px-6 pb-3 sm:pb-6">
+                              <div className="space-y-1.5 sm:space-y-2">
+                                <div className="flex items-center justify-between gap-2">
+                                  <Badge className={`${getCategoryBadgeColor(product.category)} text-xs`} variant="secondary">
                                     Stok: {product.stock}
                                   </Badge>
                                   <div className="text-right">
-                                    <div className="text-base font-bold">
+                                    <div className="text-sm sm:text-base font-bold">
                                       {formatPrice(product.price)}
                                     </div>
                                     <div className="text-xs text-muted-foreground">
@@ -321,14 +324,14 @@ const Products = () => {
                                 {product.supplier && (
                                   <div className="text-xs">
                                     <span className="text-muted-foreground">Supplier:</span>
-                                    <span className="ml-1">{product.supplier}</span>
+                                    <span className="ml-1 line-clamp-1">{product.supplier}</span>
                                   </div>
                                 )}
 
                                 {product.barcode && (
                                   <div className="text-xs">
                                     <span className="text-muted-foreground">Barcode:</span>
-                                    <span className="ml-1 font-mono">{product.barcode}</span>
+                                    <span className="ml-1 font-mono line-clamp-1">{product.barcode}</span>
                                   </div>
                                 )}
                               </div>
