@@ -26,11 +26,7 @@ const App = () => (
         <BrowserRouter>
           <Routes>
             <Route path="/auth" element={<Auth />} />
-            <Route path="/" element={
-              <MainLayout>
-                <Navigate to="/dashboard" replace />
-              </MainLayout>
-            } />
+            <Route path="/" element={<Navigate to="/dashboard" replace />} />
             <Route path="/dashboard" element={
               <MainLayout>
                 <Dashboard />
