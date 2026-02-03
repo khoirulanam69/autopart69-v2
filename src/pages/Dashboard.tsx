@@ -1,10 +1,14 @@
 
+import { useEffect } from 'react';
 import { DashboardStats } from '@/components/dashboard/DashboardStats';
 import { SalesChart } from '@/components/dashboard/SalesChart';
 import { RecentTransactions } from '@/components/dashboard/RecentTransactions';
 import { LowStockAlert } from '@/components/dashboard/LowStockAlert';
 
 const Dashboard = () => {
+  useEffect(() => {
+    document.title = 'Dashboard | Autopart69';
+  }, []);
   return (
     <div className="p-6">
       <div className="mb-8">

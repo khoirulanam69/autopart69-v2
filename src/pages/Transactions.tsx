@@ -39,6 +39,11 @@ const Transactions = () => {
   const [technicianFee, setTechnicianFee] = useState(0);
   const [otherFees, setOtherFees] = useState(0);
 
+  // Set document title
+  useEffect(() => {
+    document.title = 'Transaksi | Autopart69';
+  }, []);
+
   const openEditDialog = (transaction: Transaction) => {
     setEditingTransaction(transaction);
     setCustomerName(transaction.customer_name);
@@ -616,8 +621,9 @@ const Transactions = () => {
                         <Input
                           id="customer"
                           value={customerName}
-                          onChange={(e) => setCustomerName(e.target.value)}
+                          onChange={(e) => setCustomerName(e.target.value.toUpperCase())}
                           placeholder="Masukkan nama pelanggan"
+                          className="uppercase"
                         />
                       </div>
                       
@@ -776,8 +782,9 @@ const Transactions = () => {
                         <Input
                           id="edit-customer"
                           value={customerName}
-                          onChange={(e) => setCustomerName(e.target.value)}
+                          onChange={(e) => setCustomerName(e.target.value.toUpperCase())}
                           placeholder="Masukkan nama pelanggan"
+                          className="uppercase"
                         />
                       </div>
                       

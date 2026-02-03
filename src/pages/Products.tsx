@@ -12,6 +12,7 @@ import { AuthGuard } from '@/components/AuthGuard';
 import { LazyImage } from '@/components/LazyImage';
 import { BarcodeShareDialog } from '@/components/BarcodeShareDialog';
 import { ImageLightbox } from '@/components/ImageLightbox';
+import ProductExcelImport from '@/components/ProductExcelImport';
 
 const CATEGORIES = [
   { value: 'all', label: 'Semua Kategori' },
@@ -25,7 +26,7 @@ const CATEGORIES = [
 ];
 
 const Products = () => {
-  const { products, loading, hasMore, createProduct, updateProduct, deleteProduct, searchProducts, loadMore } = useProducts();
+  const { products, loading, hasMore, createProduct, updateProduct, deleteProduct, searchProducts, loadMore, fetchProducts } = useProducts();
   const [searchQuery, setSearchQuery] = useState('');
   const [showForm, setShowForm] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
@@ -36,6 +37,11 @@ const Products = () => {
   const [lightboxImage, setLightboxImage] = useState<{ url: string; alt: string } | null>(null);
   
   const parentRef = useRef<HTMLDivElement>(null);
+
+  // Set document title
+  useEffect(() => {
+    document.title = 'Produk | Autopart69';
+  }, []);
 
   // Responsive column count based on screen size
   useEffect(() => {
@@ -140,10 +146,16 @@ const Products = () => {
                 <Package className="h-5 w-5 sm:h-6 sm:w-6" />
                 <h1 className="text-lg sm:text-2xl font-bold">Management Produk</h1>
               </div>
-              <Button onClick={() => setShowForm(true)} size="sm" className="sm:h-10">
-                <Plus className="h-4 w-4 sm:mr-2" />
-                <span className="hidden sm:inline">Tambah Produk</span>
-              </Button>
+              <div className="flex items-center gap-1 sm:gap-2">
+                <ProductExcelImport 
+                  products={products} 
+                  onImportComplete={() => fetchProducts(true)} 
+                />
+                <Button onClick={() => setShowForm(true)} size="sm" className="sm:h-10">
+                  <Plus className="h-4 w-4 sm:mr-2" />
+                  <span className="hidden sm:inline">Tambah</span>
+                </Button>
+              </div>
             </div>
           </div>
         </header>

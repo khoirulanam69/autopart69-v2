@@ -5,7 +5,9 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Product } from '@/hooks/useProducts';
-import { Scan, Upload, X, Camera } from 'lucide-react';
+import { Scan, Upload, X, Camera, Wand2 } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
+import { useToast } from '@/hooks/use-toast';
 
 interface ProductFormProps {
   open: boolean;
@@ -26,6 +28,7 @@ const CATEGORIES = [
 ];
 
 const ProductForm = ({ open, onOpenChange, onSubmit, product, title }: ProductFormProps) => {
+  const { toast } = useToast();
   const [formData, setFormData] = useState({
     name: product?.name || '',
     category: product?.category || '',
@@ -37,6 +40,7 @@ const ProductForm = ({ open, onOpenChange, onSubmit, product, title }: ProductFo
   });
   const [loading, setLoading] = useState(false);
   const [isScanning, setIsScanning] = useState(false);
+  const [isGeneratingBarcode, setIsGeneratingBarcode] = useState(false);
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(product?.image_url || null);
 
@@ -108,6 +112,53 @@ const ProductForm = ({ open, onOpenChange, onSubmit, product, title }: ProductFo
     };
   }, [isScanning]);
 
+  // Generate unique barcode
+  const generateUniqueBarcode = async () => {
+    setIsGeneratingBarcode(true);
+    try {
+      let isUnique = false;
+      let newBarcode = '';
+      
+      while (!isUnique) {
+        // Generate barcode: PREFIX + TIMESTAMP + RANDOM
+        const timestamp = Date.now().toString(36).toUpperCase();
+        const random = Math.random().toString(36).substring(2, 6).toUpperCase();
+        newBarcode = `PRD${timestamp}${random}`;
+        
+        // Check if barcode already exists in database
+        const { data, error } = await supabase
+          .from('products')
+          .select('id')
+          .eq('barcode', newBarcode)
+          .maybeSingle();
+        
+        if (error) {
+          console.error('Error checking barcode:', error);
+          throw error;
+        }
+        
+        // If no product found with this barcode, it's unique
+        if (!data) {
+          isUnique = true;
+        }
+      }
+      
+      setFormData(prev => ({ ...prev, barcode: newBarcode }));
+      toast({
+        title: "Berhasil",
+        description: "Kode barcode berhasil di-generate",
+      });
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: "Gagal generate kode barcode",
+        variant: "destructive",
+      });
+    } finally {
+      setIsGeneratingBarcode(false);
+    }
+  };
+
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -127,6 +178,26 @@ const ProductForm = ({ open, onOpenChange, onSubmit, product, title }: ProductFo
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Validation for prices > 0
+    if (formData.purchase_price <= 0) {
+      toast({
+        title: "Error",
+        description: "Harga beli harus lebih dari 0",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    if (formData.price <= 0) {
+      toast({
+        title: "Error",
+        description: "Harga jual harus lebih dari 0",
+        variant: "destructive",
+      });
+      return;
+    }
+    
     setLoading(true);
     
     const result = await onSubmit(formData, imageFile || undefined);
@@ -146,6 +217,22 @@ const ProductForm = ({ open, onOpenChange, onSubmit, product, title }: ProductFo
       setImagePreview(null);
     }
     setLoading(false);
+  };
+
+  // Helper function to format number input display
+  const formatNumberValue = (value: number): string => {
+    return value === 0 ? '' : value.toString();
+  };
+
+  // Helper function to parse number input
+  const parseNumberValue = (value: string): number => {
+    const parsed = parseFloat(value);
+    return isNaN(parsed) ? 0 : parsed;
+  };
+
+  const parseIntValue = (value: string): number => {
+    const parsed = parseInt(value);
+    return isNaN(parsed) ? 0 : parsed;
   };
 
   return (
@@ -228,8 +315,9 @@ const ProductForm = ({ open, onOpenChange, onSubmit, product, title }: ProductFo
             <Input
               id="name"
               value={formData.name}
-              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+              onChange={(e) => setFormData({ ...formData, name: e.target.value.toUpperCase() })}
               required
+              className="uppercase"
             />
           </div>
 
@@ -259,10 +347,11 @@ const ProductForm = ({ open, onOpenChange, onSubmit, product, title }: ProductFo
               <Input
                 id="purchase_price"
                 type="number"
-                min="0"
-                step="0.01"
-                value={formData.purchase_price}
-                onChange={(e) => setFormData({ ...formData, purchase_price: parseFloat(e.target.value) || 0 })}
+                min="1"
+                step="1"
+                value={formatNumberValue(formData.purchase_price)}
+                onChange={(e) => setFormData({ ...formData, purchase_price: parseNumberValue(e.target.value) })}
+                placeholder="Masukkan harga beli"
                 required
               />
             </div>
@@ -271,10 +360,11 @@ const ProductForm = ({ open, onOpenChange, onSubmit, product, title }: ProductFo
               <Input
                 id="price"
                 type="number"
-                min="0"
-                step="0.01"
-                value={formData.price}
-                onChange={(e) => setFormData({ ...formData, price: parseFloat(e.target.value) || 0 })}
+                min="1"
+                step="1"
+                value={formatNumberValue(formData.price)}
+                onChange={(e) => setFormData({ ...formData, price: parseNumberValue(e.target.value) })}
+                placeholder="Masukkan harga jual"
                 required
               />
             </div>
@@ -286,8 +376,9 @@ const ProductForm = ({ open, onOpenChange, onSubmit, product, title }: ProductFo
               id="stock"
               type="number"
               min="0"
-              value={formData.stock}
-              onChange={(e) => setFormData({ ...formData, stock: parseInt(e.target.value) || 0 })}
+              value={formatNumberValue(formData.stock)}
+              onChange={(e) => setFormData({ ...formData, stock: parseIntValue(e.target.value) })}
+              placeholder="Masukkan jumlah stok"
               required
             />
           </div>
@@ -299,17 +390,29 @@ const ProductForm = ({ open, onOpenChange, onSubmit, product, title }: ProductFo
                 id="barcode"
                 value={formData.barcode}
                 onChange={(e) => setFormData({ ...formData, barcode: e.target.value })}
-                placeholder="Scan atau ketik barcode"
-                disabled={isScanning}
+                placeholder="Scan, ketik, atau generate barcode"
+                disabled={isScanning || isGeneratingBarcode}
+                className="flex-1"
               />
               <Button
                 type="button"
+                variant="outline"
+                size="icon"
+                onClick={generateUniqueBarcode}
+                disabled={isGeneratingBarcode || isScanning}
+                title="Generate Barcode"
+              >
+                <Wand2 className={`h-4 w-4 ${isGeneratingBarcode ? 'animate-spin' : ''}`} />
+              </Button>
+              <Button
+                type="button"
                 variant={isScanning ? "destructive" : "outline"}
-                size="sm"
+                size="icon"
                 onClick={() => setIsScanning(!isScanning)}
+                disabled={isGeneratingBarcode}
+                title={isScanning ? "Stop Scan" : "Scan Barcode"}
               >
                 <Scan className="h-4 w-4" />
-                {isScanning ? "Stop" : "Scan"}
               </Button>
             </div>
             {isScanning && (
