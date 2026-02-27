@@ -243,13 +243,9 @@ const ProductExcelImport = ({ products, onImportComplete }: ProductExcelImportPr
             </DialogTitle>
             <DialogDescription>{importing ? 'Sedang memproses file...' : 'Hasil import data produk'}</DialogDescription>
           </DialogHeader>
-
           <div className="space-y-4">
             {importing && (
               <div className="space-y-2">
-                <div className="flex items-center justify-between text-sm">
-                  <span>Memproses data...</span><span>{importProgress}%</span>
-                </div>
                 <Progress value={importProgress} />
               </div>
             )}
