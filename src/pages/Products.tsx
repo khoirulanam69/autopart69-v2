@@ -3,15 +3,16 @@ import { useVirtualizer } from '@tanstack/react-virtual';
 import { useProducts, Product } from '@/hooks/useProducts';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
-import { Search, Plus, Edit, Trash2, Package, Printer, AlertTriangle, Loader2 } from 'lucide-react';
+import { Search, Plus, Edit, Trash2, Package, QrCode, Loader2 } from 'lucide-react';
 import ProductForm from '@/components/ProductForm';
 import { AuthGuard } from '@/components/AuthGuard';
 import { LazyImage } from '@/components/LazyImage';
+import { BarcodeShareDialog } from '@/components/BarcodeShareDialog';
+import { ImageLightbox } from '@/components/ImageLightbox';
+import ProductExcelImport from '@/components/ProductExcelImport';
 
 const CATEGORIES = [
   { value: 'all', label: 'Semua Kategori' },
@@ -25,14 +26,22 @@ const CATEGORIES = [
 ];
 
 const Products = () => {
-  const { products, loading, hasMore, createProduct, updateProduct, deleteProduct, searchProducts, loadMore } = useProducts();
+  const { products, loading, hasMore, createProduct, updateProduct, deleteProduct, searchProducts, loadMore, fetchProducts } = useProducts();
   const [searchQuery, setSearchQuery] = useState('');
   const [showForm, setShowForm] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [isSearching, setIsSearching] = useState(false);
   const [columnCount, setColumnCount] = useState(1);
+  const [barcodeProduct, setBarcodeProduct] = useState<Product | null>(null);
+  const [showBarcodeDialog, setShowBarcodeDialog] = useState(false);
+  const [lightboxImage, setLightboxImage] = useState<{ url: string; alt: string } | null>(null);
   
   const parentRef = useRef<HTMLDivElement>(null);
+
+  // Set document title
+  useEffect(() => {
+    document.title = 'Produk | Autopart69';
+  }, []);
 
   // Responsive column count based on screen size
   useEffect(() => {
@@ -102,53 +111,9 @@ const Products = () => {
     await deleteProduct(id);
   };
 
-  const handlePrintBarcode = (product: Product) => {
-    const canvas = document.createElement('canvas');
-    import('jsbarcode').then((JsBarcode) => {
-      JsBarcode.default(canvas, product.barcode || product.id, {
-        format: "CODE128",
-        width: 2,
-        height: 100,
-        displayValue: true
-      });
-      
-      const printWindow = window.open('', '_blank');
-      if (printWindow) {
-        printWindow.document.write(`
-          <html>
-            <head>
-              <title>Print Barcode - ${product.name}</title>
-              <style>
-                body { font-family: Arial, sans-serif; text-align: center; padding: 20px; }
-                .barcode-container { margin: 20px 0; }
-                .product-info { margin-bottom: 10px; }
-                @media print {
-                  @page { size: A4; margin: 1cm; }
-                }
-              </style>
-            </head>
-            <body>
-              <div class="product-info">
-                <h3>${product.name}</h3>
-                <p>Harga: ${formatPrice(product.price)}</p>
-              </div>
-              <div class="barcode-container">
-                <img src="${canvas.toDataURL()}" alt="Barcode" />
-              </div>
-              <script>
-                window.onload = function() {
-                  window.print();
-                  window.onafterprint = function() {
-                    window.close();
-                  };
-                };
-              </script>
-            </body>
-          </html>
-        `);
-        printWindow.document.close();
-      }
-    });
+  const handleOpenBarcodeDialog = (product: Product) => {
+    setBarcodeProduct(product);
+    setShowBarcodeDialog(true);
   };
 
   const formatPrice = (price: number) => {
@@ -181,10 +146,16 @@ const Products = () => {
                 <Package className="h-5 w-5 sm:h-6 sm:w-6" />
                 <h1 className="text-lg sm:text-2xl font-bold">Management Produk</h1>
               </div>
-              <Button onClick={() => setShowForm(true)} size="sm" className="sm:h-10">
-                <Plus className="h-4 w-4 sm:mr-2" />
-                <span className="hidden sm:inline">Tambah Produk</span>
-              </Button>
+              <div className="flex items-center gap-1 sm:gap-2">
+                <ProductExcelImport 
+                  products={products} 
+                  onImportComplete={() => fetchProducts(true)} 
+                />
+                <Button onClick={() => setShowForm(true)} size="sm" className="sm:h-10">
+                  <Plus className="h-4 w-4 sm:mr-2" />
+                  <span className="hidden sm:inline">Tambah</span>
+                </Button>
+              </div>
             </div>
           </div>
         </header>
@@ -245,11 +216,16 @@ const Products = () => {
                         {rowProducts.map((product) => (
                           <Card key={product.id} className="h-fit hover:shadow-lg transition-shadow">
                             {product.image_url && (
-                              <LazyImage
-                                src={product.image_url}
-                                alt={product.name}
-                                className="w-full h-40 sm:h-48 object-cover"
-                              />
+                              <div 
+                                className="cursor-pointer"
+                                onClick={() => setLightboxImage({ url: product.image_url!, alt: product.name })}
+                              >
+                                <LazyImage
+                                  src={product.image_url}
+                                  alt={product.name}
+                                  className="w-full h-40 sm:h-48 object-cover hover:opacity-90 transition-opacity"
+                                />
+                              </div>
                             )}
                             <CardHeader className="pb-2 sm:pb-3 px-3 sm:px-6 pt-3 sm:pt-6">
                               <div className="flex justify-between items-start gap-2">
@@ -263,11 +239,11 @@ const Products = () => {
                                   <Button
                                     size="sm"
                                     variant="ghost"
-                                    onClick={() => handlePrintBarcode(product)}
-                                    title="Print Barcode"
+                                    onClick={() => handleOpenBarcodeDialog(product)}
+                                    title="Share & Print Barcode"
                                     className="h-7 w-7 sm:h-8 sm:w-8 p-0"
                                   >
-                                    <Printer className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
+                                    <QrCode className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
                                   </Button>
                                   <Button
                                     size="sm"
@@ -364,6 +340,21 @@ const Products = () => {
           onSubmit={editingProduct ? handleUpdateProduct : handleCreateProduct}
           product={editingProduct}
           title={editingProduct ? 'Edit Produk' : 'Tambah Produk Baru'}
+        />
+
+        {/* Barcode Share Dialog */}
+        <BarcodeShareDialog
+          open={showBarcodeDialog}
+          onOpenChange={setShowBarcodeDialog}
+          product={barcodeProduct}
+        />
+
+        {/* Image Lightbox */}
+        <ImageLightbox
+          open={!!lightboxImage}
+          onOpenChange={(open) => !open && setLightboxImage(null)}
+          imageUrl={lightboxImage?.url || ''}
+          alt={lightboxImage?.alt}
         />
       </div>
     </AuthGuard>

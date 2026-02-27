@@ -1,5 +1,5 @@
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -9,6 +9,9 @@ import { useToast } from '@/hooks/use-toast';
 import { AuthGuard } from '@/components/AuthGuard';
 
 const Auth = () => {
+  useEffect(() => {
+    document.title = 'Login | Autopart69';
+  }, []);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -40,7 +43,7 @@ const Auth = () => {
     } else {
       toast({
         title: "Berhasil Login",
-        description: "Selamat datang di Bengkel Hub",
+        description: "Selamat datang di Autopart69",
       });
     }
     setLoading(false);
@@ -51,9 +54,9 @@ const Auth = () => {
       <div className="min-h-screen flex items-center justify-center bg-background p-4">
         <Card className="w-full max-w-md">
           <CardHeader className="text-center">
-            <CardTitle className="text-2xl font-bold">Bengkel Hub</CardTitle>
+            <CardTitle className="text-2xl font-bold">Autopart69</CardTitle>
             <CardDescription>
-              Sistem Manajemen Bengkel
+              Sistem Manajemen Toko Sparepart
             </CardDescription>
           </CardHeader>
           <CardContent>

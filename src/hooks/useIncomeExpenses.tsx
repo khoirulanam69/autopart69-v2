@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { api } from '@/lib/api';
 import { useAuth } from './useAuth';
 import { toast } from 'sonner';
 
@@ -23,14 +23,7 @@ export const useIncomeExpenses = () => {
     queryKey: ['income-expenses'],
     queryFn: async () => {
       if (!user) return [];
-      
-      const { data, error } = await supabase
-        .from('income_expenses')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('date', { ascending: false });
-
-      if (error) throw error;
+      const { data } = await api.getIncomeExpenses();
       return data as IncomeExpense[];
     },
     enabled: !!user,
@@ -39,14 +32,7 @@ export const useIncomeExpenses = () => {
   const addIncomeExpense = useMutation({
     mutationFn: async (data: Omit<IncomeExpense, 'id' | 'user_id' | 'created_at' | 'updated_at'>) => {
       if (!user) throw new Error('User not authenticated');
-
-      const { data: result, error } = await supabase
-        .from('income_expenses')
-        .insert([{ ...data, user_id: user.id }])
-        .select()
-        .single();
-
-      if (error) throw error;
+      const { data: result } = await api.createIncomeExpense(data);
       return result;
     },
     onSuccess: () => {
@@ -60,12 +46,8 @@ export const useIncomeExpenses = () => {
 
   const updateIncomeExpense = useMutation({
     mutationFn: async ({ id, ...data }: Partial<IncomeExpense> & { id: string }) => {
-      const { error } = await supabase
-        .from('income_expenses')
-        .update(data)
-        .eq('id', id);
-
-      if (error) throw error;
+      const { data: result } = await api.updateIncomeExpense(id, data);
+      return result;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['income-expenses'] });
@@ -78,12 +60,7 @@ export const useIncomeExpenses = () => {
 
   const deleteIncomeExpense = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase
-        .from('income_expenses')
-        .delete()
-        .eq('id', id);
-
-      if (error) throw error;
+      await api.deleteIncomeExpense(id);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['income-expenses'] });

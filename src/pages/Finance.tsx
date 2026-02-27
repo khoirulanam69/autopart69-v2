@@ -32,6 +32,11 @@ export default function Finance() {
     date: new Date().toISOString().split('T')[0],
   });
 
+  // Set document title
+  useEffect(() => {
+    document.title = 'Keuangan | Autopart69';
+  }, []);
+
   // Helper to get product purchase price
   const getProductCost = (productId: string): number => {
     const product = products.find(p => p.id === productId);
