@@ -41,8 +41,6 @@ const ProductForm = ({ open, onOpenChange, onSubmit, product, title }: ProductFo
   const [loading, setLoading] = useState(false);
   const [isScanning, setIsScanning] = useState(false);
   const [isGeneratingBarcode, setIsGeneratingBarcode] = useState(false);
-  const [imageFile, setImageFile] = useState<File | null>(null);
-  const [imagePreview, setImagePreview] = useState<string | null>(product?.image_url || null);
 
   // Update form data when product changes
   useEffect(() => {
@@ -112,7 +110,7 @@ const ProductForm = ({ open, onOpenChange, onSubmit, product, title }: ProductFo
     };
   }, [isScanning]);
 
-  // Generate unique barcode
+// Generate unique barcode
   const generateUniqueBarcode = async () => {
     setIsGeneratingBarcode(true);
     try {
