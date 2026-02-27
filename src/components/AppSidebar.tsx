@@ -2,11 +2,15 @@ import {
   BarChart3, 
   Package, 
   CreditCard, 
+  Wallet,
   Settings,
-  LogOut
+  LogOut,
+  Menu
 } from 'lucide-react';
+import * as React from 'react';
 import { NavLink } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
+import { useIsMobile } from '@/hooks/use-mobile';
 import {
   Sidebar,
   SidebarContent,
@@ -18,7 +22,9 @@ import {
   SidebarMenuItem,
   SidebarHeader,
   SidebarFooter,
+  useSidebar,
 } from '@/components/ui/sidebar';
+import { Button } from '@/components/ui/button';
 
 const navigationItems = [
   {
@@ -37,6 +43,11 @@ const navigationItems = [
     icon: CreditCard,
   },
   {
+    title: "Keuangan",
+    url: "/finance",
+    icon: Wallet,
+  },
+  {
     title: "Settings",
     url: "/settings",
     icon: Settings,
@@ -45,41 +56,57 @@ const navigationItems = [
 
 export function AppSidebar() {
   const { user, signOut } = useAuth();
+  const isMobile = useIsMobile();
+  const { state, open, setOpen } = useSidebar();
+  const isCollapsed = state === "collapsed";
 
   return (
-    <Sidebar>
+    <Sidebar 
+      collapsible={isMobile ? "none" : "icon"}
+      className={isMobile ? "w-16 shrink-0" : ""}
+    >
+
       <SidebarHeader className="border-b border-border">
-        <div className="flex items-center gap-2 px-2 py-2">
-          <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-            <BarChart3 className="size-4" />
+        {!isMobile && (
+          <div className="flex items-center gap-2 px-2 py-2">
+            <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+              <BarChart3 className="size-4" />
+            </div>
+            <div className="grid flex-1 text-left text-sm leading-tight">
+              <span className="truncate font-semibold">Autopart69</span>
+              <span className="truncate text-xs text-muted-foreground">
+                Toko Sparepart
+              </span>
+            </div>
           </div>
-          <div className="grid flex-1 text-left text-sm leading-tight">
-            <span className="truncate font-semibold">Bengkel Hub</span>
-            <span className="truncate text-xs text-muted-foreground">
-              Sistem Manajemen
-            </span>
+        )}
+        {isMobile && (
+          <div className="flex items-center justify-center py-3">
+            <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+              <BarChart3 className="size-4" />
+            </div>
           </div>
-        </div>
+        )}
       </SidebarHeader>
 
       <SidebarContent>
         <SidebarGroup>
-          <SidebarGroupLabel>Menu Utama</SidebarGroupLabel>
+          {!isMobile && <SidebarGroupLabel>Menu Utama</SidebarGroupLabel>}
           <SidebarGroupContent>
             <SidebarMenu>
               {navigationItems.map((item) => (
                 <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton asChild>
+                  <SidebarMenuButton asChild tooltip={isMobile ? item.title : undefined}>
                     <NavLink 
                       to={item.url}
                       className={({ isActive }) => 
-                        isActive 
+                        `${isActive 
                           ? "bg-accent text-accent-foreground font-medium" 
-                          : "hover:bg-accent hover:text-accent-foreground"
+                          : "hover:bg-accent hover:text-accent-foreground"} ${isMobile ? "flex items-center justify-center" : ""}`
                       }
                     >
-                      <item.icon className="size-4" />
-                      <span>{item.title}</span>
+                      <item.icon className="size-5" />
+                      {!isMobile && <span>{item.title}</span>}
                     </NavLink>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
@@ -89,24 +116,41 @@ export function AppSidebar() {
         </SidebarGroup>
       </SidebarContent>
 
-      <SidebarFooter className="border-t border-border">
+      <SidebarFooter className="border-t border-border mt-auto">
         <SidebarMenu>
-          <SidebarMenuItem>
-            <div className="flex items-center gap-2 px-2 py-2 text-sm">
-              <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-muted">
-                <span className="text-xs font-semibold">
-                  {user?.email?.charAt(0).toUpperCase()}
-                </span>
+          {!isMobile && (
+            <SidebarMenuItem>
+              <div className="flex items-center gap-2 px-2 py-2 text-sm">
+                <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-muted">
+                  <span className="text-xs font-semibold">
+                    {user?.email?.charAt(0).toUpperCase()}
+                  </span>
+                </div>
+                <div className="grid flex-1 text-left text-sm leading-tight">
+                  <span className="truncate font-medium">{user?.email}</span>
+                </div>
               </div>
-              <div className="grid flex-1 text-left text-sm leading-tight">
-                <span className="truncate font-medium">{user?.email}</span>
-              </div>
-            </div>
-          </SidebarMenuItem>
+            </SidebarMenuItem>
+          )}
+          {isMobile && (
+            <SidebarMenuItem>
+              <SidebarMenuButton className="w-full justify-center">
+                <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-muted">
+                  <span className="text-xs font-semibold">
+                    {user?.email?.charAt(0).toUpperCase()}
+                  </span>
+                </div>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          )}
           <SidebarMenuItem>
-            <SidebarMenuButton onClick={signOut} className="w-full">
-              <LogOut className="size-4" />
-              <span>Logout</span>
+            <SidebarMenuButton 
+              onClick={signOut} 
+              className={`w-full ${isMobile ? "flex items-center justify-center" : ""}`}
+              tooltip={isMobile ? "Logout" : undefined}
+            >
+              <LogOut className="size-5" />
+              {!isMobile && <span>Logout</span>}
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>

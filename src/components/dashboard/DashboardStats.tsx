@@ -7,7 +7,7 @@ import { useMemo } from 'react';
 
 export const DashboardStats = () => {
   const { transactions } = useTransactions();
-  const { products, lowStockProducts } = useProducts();
+  const { totalCount, lowStockProducts } = useProducts();
 
   const stats = useMemo(() => {
     const today = new Date().toISOString().split('T')[0];
@@ -16,7 +16,7 @@ export const DashboardStats = () => {
     const totalRevenue = transactions.reduce((sum, t) => sum + t.total_amount, 0);
     const todayRevenue = todayTransactions.reduce((sum, t) => sum + t.total_amount, 0);
     
-    const totalProducts = products.length;
+    const totalProducts = totalCount;
     const lowStock = lowStockProducts.length;
 
     return {
@@ -27,7 +27,7 @@ export const DashboardStats = () => {
       totalProducts,
       lowStock
     };
-  }, [transactions, products, lowStockProducts]);
+  }, [transactions, totalCount, lowStockProducts]);
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('id-ID', {
@@ -79,7 +79,7 @@ export const DashboardStats = () => {
 
       <Card>
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium">Stok Rendah</CardTitle>
+          <CardTitle className="text-sm font-medium">Stok Kosong</CardTitle>
           <AlertTriangle className="h-4 w-4 text-destructive" />
         </CardHeader>
         <CardContent>

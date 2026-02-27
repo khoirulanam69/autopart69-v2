@@ -1,4 +1,5 @@
 
+// App entry point
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -10,6 +11,7 @@ import NotFound from "./pages/NotFound";
 import Auth from "./pages/Auth";
 import Products from "./pages/Products";
 import Transactions from "./pages/Transactions";
+import Finance from "./pages/Finance";
 import Settings from "./pages/Settings";
 import Dashboard from "./pages/Dashboard";
 import { InstallPrompt } from "@/components/InstallPrompt";
@@ -25,11 +27,7 @@ const App = () => (
         <BrowserRouter>
           <Routes>
             <Route path="/auth" element={<Auth />} />
-            <Route path="/" element={
-              <MainLayout>
-                <Navigate to="/dashboard" replace />
-              </MainLayout>
-            } />
+            <Route path="/" element={<Navigate to="/dashboard" replace />} />
             <Route path="/dashboard" element={
               <MainLayout>
                 <Dashboard />
@@ -43,6 +41,11 @@ const App = () => (
             <Route path="/transactions" element={
               <MainLayout>
                 <Transactions />
+              </MainLayout>
+            } />
+            <Route path="/finance" element={
+              <MainLayout>
+                <Finance />
               </MainLayout>
             } />
             <Route path="/settings" element={

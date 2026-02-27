@@ -18,13 +18,13 @@ export const LowStockAlert = () => {
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-destructive">
           <AlertTriangle className="h-5 w-5" />
-          Peringatan Stok Rendah
+          Peringatan Stok Kosong
         </CardTitle>
       </CardHeader>
       <CardContent>
         <div className="space-y-4">
           <p className="text-sm text-muted-foreground">
-            {lowStockProducts.length} produk memiliki stok kurang dari 2 unit:
+            {lowStockProducts.length} produk memiliki stok kosong:
           </p>
           
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
