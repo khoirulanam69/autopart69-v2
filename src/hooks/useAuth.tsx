@@ -3,14 +3,16 @@ import { api } from '@/lib/api';
 
 interface User {
   id: string;
+  name: string;
   email: string;
+  role: string;
 }
 
 interface AuthContextType {
   user: User | null;
   loading: boolean;
   signIn: (email: string, password: string) => Promise<{ error: any }>;
-  signUp: (email: string, password: string) => Promise<{ error: any }>;
+  signUp: (name: string, email: string, password: string, role?: string) => Promise<{ error: any }>;
   signOut: () => Promise<void>;
 }
 
@@ -49,9 +51,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const signUp = async (email: string, password: string) => {
+  const signUp = async (name: string, email: string, password: string, role: string = 'admin') => {
     try {
-      await api.register(email, password);
+      await api.register(name, email, password, role);
       return { error: null };
     } catch (error: any) {
       return { error };
