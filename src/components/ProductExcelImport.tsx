@@ -88,6 +88,7 @@ const ProductExcelImport = ({ products, onImportComplete }: ProductExcelImportPr
       'Stok': 10,
       'Supplier': 'Supplier ABC',
       'Barcode': 'PRD123456',
+      'Gambar URL': 'https://cdn.mkaindo.com/autopart-products/contoh.jpg',
     }];
 
     const wb = XLSX.utils.book_new();
@@ -104,6 +105,7 @@ const ProductExcelImport = ({ products, onImportComplete }: ProductExcelImportPr
       ['- Stok: Jumlah stok (default: 0)'],
       ['- Supplier: Nama supplier'],
       ['- Barcode: Kode barcode produk'],
+      ['- Gambar URL: URL gambar produk (opsional, tidak akan di-overwrite jika kosong)'],
     ];
     const wsInstructions = XLSX.utils.aoa_to_sheet(instructionsData);
     wsInstructions['!cols'] = [{ wch: 80 }];
@@ -148,6 +150,7 @@ const ProductExcelImport = ({ products, onImportComplete }: ProductExcelImportPr
           stock: row['Stok'] !== undefined && row['Stok'] !== '' ? Number(row['Stok']) : 0,
           supplier: row['Supplier'] ? String(row['Supplier']).trim() : null,
           barcode: row['Barcode'] ? String(row['Barcode']).trim() : null,
+          image_url: row['Gambar URL'] ? String(row['Gambar URL']).trim() : undefined,
         };
       });
 
