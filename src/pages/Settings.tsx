@@ -13,18 +13,20 @@ const Settings = () => {
   useEffect(() => {
     document.title = 'Settings | Autopart69';
   }, []);
+  const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [role, setRole] = useState('admin');
   const [loading, setLoading] = useState(false);
   const { signUp, user } = useAuth();
   const { toast } = useToast();
 
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email || !password) {
+    if (!name || !email || !password) {
       toast({
         title: "Error",
-        description: "Mohon isi email dan password",
+        description: "Mohon isi nama, email, dan password",
         variant: "destructive",
       });
       return;
@@ -40,7 +42,7 @@ const Settings = () => {
     }
 
     setLoading(true);
-    const { error } = await signUp(email, password);
+    const { error } = await signUp(name, email, password, role);
     
     if (error) {
       if (error.message.includes("already registered")) {
@@ -61,8 +63,10 @@ const Settings = () => {
         title: "Registrasi Berhasil",
         description: "User baru berhasil didaftarkan",
       });
+      setName('');
       setEmail('');
       setPassword('');
+      setRole('admin');
     }
     setLoading(false);
   };
@@ -94,6 +98,17 @@ const Settings = () => {
                   </CardHeader>
                   <CardContent>
                     <form onSubmit={handleSignUp} className="space-y-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="new-name">Nama</Label>
+                        <Input
+                          id="new-name"
+                          type="text"
+                          placeholder="Nama lengkap"
+                          value={name}
+                          onChange={(e) => setName(e.target.value)}
+                          required
+                        />
+                      </div>
                       <div className="space-y-2">
                         <Label htmlFor="new-email">Email</Label>
                         <Input

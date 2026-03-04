@@ -8,7 +8,6 @@ import { Download, Upload, FileSpreadsheet, AlertCircle, CheckCircle, XCircle, L
 import { Product } from '@/hooks/useProducts';
 import { api } from '@/lib/api';
 import { useToast } from '@/hooks/use-toast';
-import { useAuth } from '@/hooks/useAuth';
 import { ScrollArea } from '@/components/ui/scroll-area';
 
 interface ProductExcelImportProps {
@@ -39,7 +38,6 @@ const ProductExcelImport = ({ products, onImportComplete }: ProductExcelImportPr
   const [importResult, setImportResult] = useState<ImportResult | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
-  const { user } = useAuth();
 
   const handleExport = async () => {
     setExporting(true);
@@ -116,18 +114,6 @@ const ProductExcelImport = ({ products, onImportComplete }: ProductExcelImportPr
     toast({ title: "Template Diunduh", description: "Template Excel berhasil diunduh." });
   };
 
-  const validateProduct = (row: any, rowIndex: number): { valid: boolean; errors: ImportError[] } => {
-    const errors: ImportError[] = [];
-    const rowNum = rowIndex + 2;
-    if (!row['Nama Produk'] || String(row['Nama Produk']).trim() === '') errors.push({ row: rowNum, field: 'Nama Produk', message: 'Nama produk wajib diisi' });
-    if (!row['Kategori'] || String(row['Kategori']).trim() === '') errors.push({ row: rowNum, field: 'Kategori', message: 'Kategori wajib diisi' });
-    else if (!VALID_CATEGORIES.includes(String(row['Kategori']).toLowerCase().trim())) errors.push({ row: rowNum, field: 'Kategori', message: `Kategori tidak valid. Pilihan: ${VALID_CATEGORIES.join(', ')}` });
-    if (isNaN(Number(row['Harga Jual'])) || Number(row['Harga Jual']) < 0) errors.push({ row: rowNum, field: 'Harga Jual', message: 'Harga jual harus berupa angka positif' });
-    if (isNaN(Number(row['Harga Beli'])) || Number(row['Harga Beli']) < 0) errors.push({ row: rowNum, field: 'Harga Beli', message: 'Harga beli harus berupa angka positif' });
-    const stok = row['Stok'] !== undefined && row['Stok'] !== '' ? Number(row['Stok']) : 0;
-    if (isNaN(stok) || stok < 0) errors.push({ row: rowNum, field: 'Stok', message: 'Stok harus berupa angka positif' });
-    return { valid: errors.length === 0, errors };
-  };
 
   const handleImport = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -147,60 +133,32 @@ const ProductExcelImport = ({ products, onImportComplete }: ProductExcelImportPr
 
       if (jsonData.length === 0) throw new Error('File Excel kosong atau format tidak sesuai');
 
-      const result: ImportResult = { success: 0, updated: 0, failed: 0, errors: [] };
-      const totalRows = jsonData.length;
-      const barcodeSet = new Set<string>();
+      setImportProgress(30);
 
-      for (let i = 0; i < jsonData.length; i++) {
-        const row = jsonData[i] as any;
-        setImportProgress(Math.round(((i + 1) / totalRows) * 100));
-
-        const validation = validateProduct(row, i);
-        if (!validation.valid) { result.failed++; result.errors.push(...validation.errors); continue; }
-
-        const barcode = row['Barcode'] ? String(row['Barcode']).trim() : null;
-        if (barcode && barcodeSet.has(barcode)) {
-          result.failed++;
-          result.errors.push({ row: i + 2, field: 'Barcode', message: `Barcode duplikat dalam file import: ${barcode}` });
-          continue;
-        }
-
+      // Map Excel rows to backend format
+      const mappedProducts = jsonData.map((row: any, i: number) => {
         const productId = row['ID'] && String(row['ID']).trim() !== '' && String(row['ID']).trim() !== '(Kosongkan untuk produk baru)' ? String(row['ID']).trim() : null;
-        const productData = {
-          name: String(row['Nama Produk']).trim(),
-          category: String(row['Kategori']).toLowerCase().trim(),
-          price: Number(row['Harga Jual']),
-          purchase_price: Number(row['Harga Beli']),
+        return {
+          _rowNum: i + 2,
+          id: productId,
+          name: row['Nama Produk'] ? String(row['Nama Produk']).trim() : '',
+          category: row['Kategori'] ? String(row['Kategori']).toLowerCase().trim() : '',
+          price: Number(row['Harga Jual']) || 0,
+          purchase_price: Number(row['Harga Beli']) || 0,
           stock: row['Stok'] !== undefined && row['Stok'] !== '' ? Number(row['Stok']) : 0,
           supplier: row['Supplier'] ? String(row['Supplier']).trim() : null,
-          barcode: barcode,
+          barcode: row['Barcode'] ? String(row['Barcode']).trim() : null,
         };
+      });
 
-        try {
-          if (barcode) {
-            const { exists } = await api.checkBarcode(barcode, productId || undefined);
-            if (exists) {
-              result.failed++;
-              result.errors.push({ row: i + 2, field: 'Barcode', message: `Barcode sudah digunakan produk lain: ${barcode}` });
-              continue;
-            }
-            barcodeSet.add(barcode);
-          }
+      setImportProgress(50);
 
-          if (productId) {
-            await api.updateProduct(productId, productData);
-            result.updated++;
-          } else {
-            await api.createProduct(productData);
-            result.success++;
-          }
-        } catch (error: any) {
-          result.failed++;
-          result.errors.push({ row: i + 2, field: 'Database', message: error.message || 'Gagal menyimpan ke database' });
-        }
-      }
+      // Send all data to backend in one request
+      const result = await api.importProducts(mappedProducts);
 
+      setImportProgress(100);
       setImportResult(result);
+
       if (result.success > 0 || result.updated > 0) {
         onImportComplete();
         toast({ title: "Import Selesai", description: `${result.success} produk baru, ${result.updated} produk diupdate, ${result.failed} gagal` });
@@ -243,9 +201,13 @@ const ProductExcelImport = ({ products, onImportComplete }: ProductExcelImportPr
             </DialogTitle>
             <DialogDescription>{importing ? 'Sedang memproses file...' : 'Hasil import data produk'}</DialogDescription>
           </DialogHeader>
+
           <div className="space-y-4">
             {importing && (
               <div className="space-y-2">
+                <div className="flex items-center justify-between text-sm">
+                  <span>Memproses data...</span><span>{importProgress}%</span>
+                </div>
                 <Progress value={importProgress} />
               </div>
             )}

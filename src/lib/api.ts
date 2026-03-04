@@ -58,10 +58,10 @@ class ApiClient {
     });
   }
 
-  async register(email: string, password: string) {
+  async register(name: string, email: string, password: string, role: string = 'admin') {
     return this.request<{ user: any }>('/auth/register', {
       method: 'POST',
-      body: JSON.stringify({ email, password }),
+      body: JSON.stringify({ name, email, password, role }),
     });
   }
 
@@ -124,6 +124,13 @@ class ApiClient {
     const params = new URLSearchParams({ barcode });
     if (excludeId) params.set('excludeId', excludeId);
     return this.request<{ exists: boolean }>(`/products/check-barcode?${params}`);
+  }
+
+  async importProducts(products: any[]) {
+    return this.request<{ success: number; updated: number; failed: number; errors: any[] }>('/products/import', {
+      method: 'POST',
+      body: JSON.stringify({ products }),
+    });
   }
 
   // Transactions
