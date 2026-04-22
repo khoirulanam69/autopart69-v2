@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -8,11 +8,10 @@ import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
-import { Search, Plus, Receipt, ShoppingCart, Trash2, Calendar, Printer, Pencil } from 'lucide-react';
+import { Search, Plus, Receipt, ShoppingCart, Trash2, Calendar, Printer, Pencil, ScanBarcode } from 'lucide-react';
 import { useProducts } from '@/hooks/useProducts';
 import { useToast } from '@/hooks/use-toast';
 import { useTransactions, type TransactionItem, type Transaction } from '@/hooks/useTransactions';
-import { useEffect } from 'react';
 import { AuthGuard } from '@/components/AuthGuard';
 
 const Transactions = () => {
@@ -34,8 +33,9 @@ const Transactions = () => {
   const [customerName, setCustomerName] = useState('');
   const [paymentMethod, setPaymentMethod] = useState<'cash' | 'transfer' | 'card'>('cash');
   const [transactionItems, setTransactionItems] = useState<TransactionItem[]>([]);
-  const [selectedProduct, setSelectedProduct] = useState('');
-  const [quantity, setQuantity] = useState(1);
+  const [barcodeInput, setBarcodeInput] = useState('');
+  const [highlightedItemId, setHighlightedItemId] = useState<string | null>(null);
+  const scannerInputRef = useRef<HTMLInputElement>(null);
   const [technicianFee, setTechnicianFee] = useState(0);
   const [otherFees, setOtherFees] = useState(0);
 
@@ -62,73 +62,101 @@ const Transactions = () => {
     setTransactionItems([]);
     setTechnicianFee(0);
     setOtherFees(0);
-    setSelectedProduct('');
-    setQuantity(1);
+    setBarcodeInput('');
+    setHighlightedItemId(null);
   };
 
-  // Barcode scanner effect - always active when dialog is open
   useEffect(() => {
     if (!showNewTransactionDialog && !showEditTransactionDialog) return;
 
-    let barcodeBuffer = '';
-    let timeoutId: ReturnType<typeof setTimeout>;
+    const focusScanner = () => scannerInputRef.current?.focus();
+    focusScanner();
+    const focusTimer = setTimeout(focusScanner, 100);
 
-    const handleKeyPress = (e: KeyboardEvent) => {
-      // Only process barcode input when dialog is open
-      if (showNewTransactionDialog || showEditTransactionDialog) {
-        // Don't interfere with normal input fields
-        const target = e.target as HTMLElement;
-        if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT') {
-          return;
-        }
+    return () => clearTimeout(focusTimer);
+  }, [showNewTransactionDialog, showEditTransactionDialog, transactionItems.length]);
 
-        e.preventDefault();
-        e.stopPropagation();
-
-        if (e.key === 'Enter') {
-          // Barcode scan complete
-          if (barcodeBuffer.length > 0) {
-            handleBarcodeScanned(barcodeBuffer);
-            barcodeBuffer = '';
-          }
-        } else if (e.key.length === 1) {
-          // Add character to buffer
-          barcodeBuffer += e.key;
-          
-          // Reset timeout
-          clearTimeout(timeoutId);
-          timeoutId = setTimeout(() => {
-            barcodeBuffer = '';
-          }, 100); // Clear buffer after 100ms of inactivity
-        }
-      }
-    };
-
-    document.addEventListener('keypress', handleKeyPress, true);
-    
-    return () => {
-      document.removeEventListener('keypress', handleKeyPress, true);
-      clearTimeout(timeoutId);
-    };
-  }, [showNewTransactionDialog, showEditTransactionDialog]);
+  const playScanFeedback = () => {
+    try {
+      const AudioContextClass = window.AudioContext || (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+      if (!AudioContextClass) return;
+      const audioContext = new AudioContextClass();
+      const oscillator = audioContext.createOscillator();
+      const gain = audioContext.createGain();
+      oscillator.connect(gain);
+      gain.connect(audioContext.destination);
+      oscillator.frequency.value = 880;
+      gain.gain.setValueAtTime(0.05, audioContext.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, audioContext.currentTime + 0.08);
+      oscillator.start();
+      oscillator.stop(audioContext.currentTime + 0.08);
+    } catch {
+      // Audio feedback is optional.
+    }
+  };
 
   const handleBarcodeScanned = (barcode: string) => {
-    // Find product by barcode from allProducts
-    const product = allProducts.find(p => p.barcode === barcode);
+    const normalizedBarcode = barcode.trim();
+    if (!normalizedBarcode) return;
+
+    const product = allProducts.find(p => p.barcode?.trim() === normalizedBarcode);
     
-    if (product) {
-      setSelectedProduct(product.id);
+    if (!product) {
       toast({
-        title: "Produk Ditemukan",
-        description: `${product.name} berhasil dipilih dari barcode`,
-      });
-    } else {
-      toast({
-        title: "Produk Tidak Ditemukan",
-        description: `Tidak ada produk dengan barcode: ${barcode}`,
+        title: "Produk tidak ditemukan",
+        description: `Barcode: ${normalizedBarcode}`,
         variant: "destructive"
       });
+      setBarcodeInput('');
+      scannerInputRef.current?.focus();
+      return;
     }
+
+    setTransactionItems(prevItems => {
+      const existingItem = prevItems.find(item => item.product_id === product.id);
+      const nextQuantity = (existingItem?.quantity || 0) + 1;
+
+      if (nextQuantity > product.stock) {
+        toast({
+          title: "Stok Tidak Mencukupi",
+          description: `Stok ${product.name} tersedia: ${product.stock}`,
+          variant: "destructive"
+        });
+        return prevItems;
+      }
+
+      const itemId = existingItem?.id || `${product.id}-${Date.now()}`;
+      setHighlightedItemId(itemId);
+      window.setTimeout(() => setHighlightedItemId(null), 600);
+      playScanFeedback();
+
+      if (existingItem) {
+        return prevItems.map(item =>
+          item.product_id === product.id
+            ? { ...item, quantity: nextQuantity, total: nextQuantity * item.price }
+            : item
+        );
+      }
+
+      return [...prevItems, {
+        id: itemId,
+        product_id: product.id,
+        product_name: product.name,
+        quantity: 1,
+        price: product.price,
+        total: product.price
+      }];
+    });
+
+    toast({ title: "Scan berhasil", description: `${product.name} ditambahkan ke transaksi` });
+    setBarcodeInput('');
+    scannerInputRef.current?.focus();
+  };
+
+  const handleScannerKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key !== 'Enter') return;
+    e.preventDefault();
+    handleBarcodeScanned(barcodeInput);
   };
 
   const formatPrice = (price: number) => {
@@ -409,67 +437,35 @@ const Transactions = () => {
     setShowDeleteDialog(true);
   };
 
-  const addItemToTransaction = () => {
-    const product = allProducts.find(p => p.id === selectedProduct);
-    if (!product) {
-      toast({
-        title: "Error",
-        description: "Produk tidak ditemukan",
-        variant: "destructive"
-      });
+  const updateItemQuantity = (itemId: string, nextQuantity: number) => {
+    if (nextQuantity <= 0) {
+      removeItemFromTransaction(itemId);
       return;
     }
 
-    if (quantity <= 0) {
-      toast({
-        title: "Error",
-        description: "Jumlah harus lebih dari 0",
-        variant: "destructive"
-      });
-      return;
-    }
+    const item = transactionItems.find(transactionItem => transactionItem.id === itemId);
+    const product = allProducts.find(productItem => productItem.id === item?.product_id);
 
-    // Check stock availability immediately
-    const currentStock = product.stock;
-    
-    // Calculate how much of this product is already in the transaction
-    const existingQuantity = transactionItems
-      .filter(item => item.product_id === product.id)
-      .reduce((sum, item) => sum + item.quantity, 0);
-    
-    const totalRequestedQuantity = existingQuantity + quantity;
-
-    if (totalRequestedQuantity > currentStock) {
+    if (product && nextQuantity > product.stock) {
       toast({
         title: "Stok Tidak Mencukupi",
-        description: `Stok ${product.name} tidak mencukupi. Stok tersedia: ${currentStock}, sudah dipilih: ${existingQuantity}, diminta tambahan: ${quantity}`,
+        description: `Stok ${product.name} tersedia: ${product.stock}`,
         variant: "destructive"
       });
       return;
     }
 
-    const newItem: TransactionItem = {
-      id: Date.now().toString(),
-      product_id: product.id,
-      product_name: product.name,
-      quantity: quantity,
-      price: product.price,
-      total: quantity * product.price
-    };
-
-    setTransactionItems([...transactionItems, newItem]);
-    setSelectedProduct('');
-    setQuantity(1);
-
-    // Show success message
-    toast({
-      title: "Item Ditambahkan",
-      description: `${product.name} (${quantity} pcs) berhasil ditambahkan ke transaksi`
-    });
+    setTransactionItems(transactionItems.map(transactionItem =>
+      transactionItem.id === itemId
+        ? { ...transactionItem, quantity: nextQuantity, total: nextQuantity * transactionItem.price }
+        : transactionItem
+    ));
+    scannerInputRef.current?.focus();
   };
 
   const removeItemFromTransaction = (itemId: string) => {
     setTransactionItems(transactionItems.filter(item => item.id !== itemId));
+    scannerInputRef.current?.focus();
   };
 
   const getTotalAmount = () => {
@@ -666,32 +662,20 @@ const Transactions = () => {
                       </div>
 
                       <div className="space-y-2">
-                        <Label>Tambah Produk</Label>
-                        
-                        <div className="flex gap-2">
-                          <Select value={selectedProduct} onValueChange={setSelectedProduct}>
-                            <SelectTrigger className="flex-1">
-                              <SelectValue placeholder="Pilih produk" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {allProducts.map(product => (
-                                <SelectItem key={product.id} value={product.id}>
-                                  {product.name} - {formatPrice(product.price)}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
+                        <Label htmlFor="barcode-scanner">Scan Barcode Produk</Label>
+                        <div className="relative">
+                          <ScanBarcode className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                           <Input
-                            type="number"
-                            value={quantity}
-                            onChange={(e) => setQuantity(parseInt(e.target.value) || 1)}
-                            placeholder="Qty"
-                            className="w-20"
-                            min="1"
+                            ref={scannerInputRef}
+                            id="barcode-scanner"
+                            value={barcodeInput}
+                            onChange={(e) => setBarcodeInput(e.target.value)}
+                            onKeyDown={handleScannerKeyDown}
+                            placeholder="Scan barcode produk"
+                            className="pl-10"
+                            autoComplete="off"
+                            inputMode="none"
                           />
-                          <Button onClick={addItemToTransaction} disabled={!selectedProduct}>
-                            <Plus className="h-4 w-4" />
-                          </Button>
                         </div>
                       </div>
                     </div>
@@ -704,14 +688,19 @@ const Transactions = () => {
                         ) : (
                           <div className="space-y-2">
                             {transactionItems.map(item => (
-                              <div key={item.id} className="flex items-center justify-between p-2 bg-muted rounded">
+                              <div key={item.id} className={`flex items-center justify-between gap-3 p-2 rounded transition-colors ${highlightedItemId === item.id ? 'bg-primary/20' : 'bg-muted'}`}>
                                 <div className="flex-1">
                                   <div className="font-medium">{item.product_name}</div>
-                                  <div className="text-sm text-muted-foreground">
-                                    {item.quantity} x {formatPrice(item.price)}
-                                  </div>
+                                  <div className="text-sm text-muted-foreground">@ {formatPrice(item.price)}</div>
                                 </div>
                                 <div className="flex items-center gap-2">
+                                  <Input
+                                    type="number"
+                                    min="1"
+                                    value={item.quantity}
+                                    onChange={(e) => updateItemQuantity(item.id, parseInt(e.target.value) || 1)}
+                                    className="w-20"
+                                  />
                                   <span className="font-medium">{formatPrice(item.total)}</span>
                                   <Button
                                     size="sm"
@@ -827,32 +816,20 @@ const Transactions = () => {
                       </div>
 
                       <div className="space-y-2">
-                        <Label>Tambah Produk</Label>
-                        
-                        <div className="flex gap-2">
-                          <Select value={selectedProduct} onValueChange={setSelectedProduct}>
-                            <SelectTrigger className="flex-1">
-                              <SelectValue placeholder="Pilih produk" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {allProducts.map(product => (
-                                <SelectItem key={product.id} value={product.id}>
-                                  {product.name} - {formatPrice(product.price)}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
+                        <Label htmlFor="edit-barcode-scanner">Scan Barcode Produk</Label>
+                        <div className="relative">
+                          <ScanBarcode className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                           <Input
-                            type="number"
-                            value={quantity}
-                            onChange={(e) => setQuantity(parseInt(e.target.value) || 1)}
-                            placeholder="Qty"
-                            className="w-20"
-                            min="1"
+                            ref={scannerInputRef}
+                            id="edit-barcode-scanner"
+                            value={barcodeInput}
+                            onChange={(e) => setBarcodeInput(e.target.value)}
+                            onKeyDown={handleScannerKeyDown}
+                            placeholder="Scan barcode produk"
+                            className="pl-10"
+                            autoComplete="off"
+                            inputMode="none"
                           />
-                          <Button onClick={addItemToTransaction} disabled={!selectedProduct}>
-                            <Plus className="h-4 w-4" />
-                          </Button>
                         </div>
                       </div>
                     </div>
@@ -865,14 +842,19 @@ const Transactions = () => {
                         ) : (
                           <div className="space-y-2">
                             {transactionItems.map(item => (
-                              <div key={item.id} className="flex items-center justify-between p-2 bg-muted rounded">
+                              <div key={item.id} className={`flex items-center justify-between gap-3 p-2 rounded transition-colors ${highlightedItemId === item.id ? 'bg-primary/20' : 'bg-muted'}`}>
                                 <div className="flex-1">
                                   <div className="font-medium">{item.product_name}</div>
-                                  <div className="text-sm text-muted-foreground">
-                                    {item.quantity} x {formatPrice(item.price)}
-                                  </div>
+                                  <div className="text-sm text-muted-foreground">@ {formatPrice(item.price)}</div>
                                 </div>
                                 <div className="flex items-center gap-2">
+                                  <Input
+                                    type="number"
+                                    min="1"
+                                    value={item.quantity}
+                                    onChange={(e) => updateItemQuantity(item.id, parseInt(e.target.value) || 1)}
+                                    className="w-20"
+                                  />
                                   <span className="font-medium">{formatPrice(item.total)}</span>
                                   <Button
                                     size="sm"
