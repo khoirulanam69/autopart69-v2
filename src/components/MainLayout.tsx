@@ -6,13 +6,14 @@ import { useIsMobile } from '@/hooks/use-mobile';
 
 interface MainLayoutProps {
   children: React.ReactNode;
+  allowedRoles?: string[];
 }
 
-export function MainLayout({ children }: MainLayoutProps) {
+export function MainLayout({ children, allowedRoles }: MainLayoutProps) {
   const isMobile = useIsMobile();
 
   return (
-    <AuthGuard requireAuth={true}>
+    <AuthGuard requireAuth={true} allowedRoles={allowedRoles}>
       <SidebarProvider defaultOpen={true}>
         <div className="flex min-h-screen w-full overflow-x-hidden relative">
           <AppSidebar />

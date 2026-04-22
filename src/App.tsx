@@ -7,6 +7,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "@/hooks/useAuth";
 import { MainLayout } from "@/components/MainLayout";
+import { ROUTE_ALLOWED_ROLES } from "@/lib/rbac";
 import NotFound from "./pages/NotFound";
 import Auth from "./pages/Auth";
 import Products from "./pages/Products";
@@ -44,12 +45,12 @@ const App = () => (
               </MainLayout>
             } />
             <Route path="/finance" element={
-              <MainLayout>
+              <MainLayout allowedRoles={ROUTE_ALLOWED_ROLES['/finance']}>
                 <Finance />
               </MainLayout>
             } />
             <Route path="/settings" element={
-              <MainLayout>
+              <MainLayout allowedRoles={ROUTE_ALLOWED_ROLES['/settings']}>
                 <Settings />
               </MainLayout>
             } />

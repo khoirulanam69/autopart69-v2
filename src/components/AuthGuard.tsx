@@ -1,30 +1,39 @@
-
 import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
+import { useToast } from '@/hooks/use-toast';
 
 interface AuthGuardProps {
   children: React.ReactNode;
   requireAuth?: boolean;
+  allowedRoles?: string[];
 }
 
-export const AuthGuard = ({ children, requireAuth = true }: AuthGuardProps) => {
+export const AuthGuard = ({ children, requireAuth = true, allowedRoles }: AuthGuardProps) => {
   const { user, loading } = useAuth();
   const navigate = useNavigate();
+  const { toast } = useToast();
 
   useEffect(() => {
-    if (!loading) {
-      if (requireAuth && !user) {
-        // User is not authenticated but auth is required
-        navigate('/auth');
-      } else if (!requireAuth && user) {
-        // User is authenticated but trying to access auth page
-        navigate('/');
-      }
+    if (loading) return;
+    if (requireAuth && !user) {
+      navigate('/auth');
+      return;
     }
-  }, [user, loading, navigate, requireAuth]);
+    if (!requireAuth && user) {
+      navigate('/');
+      return;
+    }
+    if (requireAuth && user && allowedRoles && !allowedRoles.includes(user.role)) {
+      toast({
+        title: 'Akses Ditolak',
+        description: 'Anda tidak memiliki izin untuk mengakses halaman ini',
+        variant: 'destructive',
+      });
+      navigate('/dashboard');
+    }
+  }, [user, loading, navigate, requireAuth, allowedRoles, toast]);
 
-  // Show loading while checking auth
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
@@ -35,15 +44,9 @@ export const AuthGuard = ({ children, requireAuth = true }: AuthGuardProps) => {
     );
   }
 
-  // If requiring auth but no user, don't render (redirect will happen)
-  if (requireAuth && !user) {
-    return null;
-  }
-
-  // If not requiring auth but user exists, don't render (redirect will happen)
-  if (!requireAuth && user) {
-    return null;
-  }
+  if (requireAuth && !user) return null;
+  if (!requireAuth && user) return null;
+  if (requireAuth && user && allowedRoles && !allowedRoles.includes(user.role)) return null;
 
   return <>{children}</>;
 };

@@ -26,32 +26,14 @@ import {
 } from '@/components/ui/sidebar';
 import { Button } from '@/components/ui/button';
 
+import { canAccessRoute } from '@/lib/rbac';
+
 const navigationItems = [
-  {
-    title: "Dashboard",
-    url: "/dashboard",
-    icon: BarChart3,
-  },
-  {
-    title: "Produk",
-    url: "/products",
-    icon: Package,
-  },
-  {
-    title: "Transaksi",
-    url: "/transactions", 
-    icon: CreditCard,
-  },
-  {
-    title: "Keuangan",
-    url: "/finance",
-    icon: Wallet,
-  },
-  {
-    title: "Settings",
-    url: "/settings",
-    icon: Settings,
-  },
+  { title: "Dashboard", url: "/dashboard", icon: BarChart3 },
+  { title: "Produk", url: "/products", icon: Package },
+  { title: "Transaksi", url: "/transactions", icon: CreditCard },
+  { title: "Keuangan", url: "/finance", icon: Wallet },
+  { title: "Settings", url: "/settings", icon: Settings },
 ];
 
 export function AppSidebar() {
@@ -59,6 +41,7 @@ export function AppSidebar() {
   const isMobile = useIsMobile();
   const { state, open, setOpen } = useSidebar();
   const isCollapsed = state === "collapsed";
+  const visibleItems = navigationItems.filter((item) => canAccessRoute(user?.role, item.url));
 
   return (
     <Sidebar 
@@ -94,7 +77,7 @@ export function AppSidebar() {
           {!isMobile && <SidebarGroupLabel>Menu Utama</SidebarGroupLabel>}
           <SidebarGroupContent>
             <SidebarMenu>
-              {navigationItems.map((item) => (
+              {visibleItems.map((item) => (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton asChild tooltip={isMobile ? item.title : undefined}>
                     <NavLink 
