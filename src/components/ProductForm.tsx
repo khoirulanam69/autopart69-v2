@@ -68,7 +68,7 @@ const ProductForm = ({ open, onOpenChange, onSubmit, product, title }: ProductFo
     if (!isScanning) return;
 
     let barcodeBuffer = '';
-    let timeoutId: NodeJS.Timeout;
+    let timeoutId: ReturnType<typeof setTimeout>;
 
     const handleKeyPress = (e: KeyboardEvent) => {
       e.preventDefault();

@@ -71,7 +71,7 @@ const Transactions = () => {
     if (!showNewTransactionDialog && !showEditTransactionDialog) return;
 
     let barcodeBuffer = '';
-    let timeoutId: NodeJS.Timeout;
+    let timeoutId: ReturnType<typeof setTimeout>;
 
     const handleKeyPress = (e: KeyboardEvent) => {
       // Only process barcode input when dialog is open

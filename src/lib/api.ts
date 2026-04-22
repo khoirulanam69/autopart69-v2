@@ -65,6 +65,10 @@ class ApiClient {
     });
   }
 
+  async getRoles() {
+    return this.request<{ roles: string[]; defaultRole: string }>('/auth/roles');
+  }
+
   async getMe() {
     return this.request<{ user: any }>('/auth/me');
   }

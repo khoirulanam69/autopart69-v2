@@ -6,8 +6,10 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { AuthGuard } from '@/components/AuthGuard';
+import { api } from '@/lib/api';
 
 const Settings = () => {
   useEffect(() => {
@@ -16,10 +18,25 @@ const Settings = () => {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [role, setRole] = useState('admin');
+  const [role, setRole] = useState('staff');
+  const [availableRoles, setAvailableRoles] = useState<string[]>(['staff']);
   const [loading, setLoading] = useState(false);
   const { signUp, user } = useAuth();
   const { toast } = useToast();
+
+  useEffect(() => {
+    if (user?.role !== 'admin') return;
+
+    api.getRoles()
+      .then(({ roles, defaultRole }) => {
+        setAvailableRoles(roles.length ? roles : ['staff']);
+        setRole(defaultRole || 'staff');
+      })
+      .catch(() => {
+        setAvailableRoles(['admin', 'staff']);
+        setRole('staff');
+      });
+  }, [user?.role]);
 
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -66,7 +83,7 @@ const Settings = () => {
       setName('');
       setEmail('');
       setPassword('');
-      setRole('admin');
+      setRole(availableRoles.includes('staff') ? 'staff' : availableRoles[0] || 'staff');
     }
     setLoading(false);
   };
@@ -130,6 +147,21 @@ const Settings = () => {
                           onChange={(e) => setPassword(e.target.value)}
                           required
                         />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="new-role">Role</Label>
+                        <Select value={role} onValueChange={setRole}>
+                          <SelectTrigger id="new-role">
+                            <SelectValue placeholder="Pilih role" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {availableRoles.map((item) => (
+                              <SelectItem key={item} value={item}>
+                                {item.charAt(0).toUpperCase() + item.slice(1)}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
                       </div>
                       <Button type="submit" disabled={loading}>
                         {loading ? "Loading..." : "Daftar User Baru"}
