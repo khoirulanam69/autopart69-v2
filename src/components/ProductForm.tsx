@@ -8,6 +8,7 @@ import { Product } from '@/hooks/useProducts';
 import { Scan, Upload, X, Camera, Wand2 } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useToast } from '@/hooks/use-toast';
+import { getProductImageUrl } from '@/lib/productImage';
 
 interface ProductFormProps {
   open: boolean;
@@ -42,7 +43,7 @@ const ProductForm = ({ open, onOpenChange, onSubmit, product, title }: ProductFo
   const [isScanning, setIsScanning] = useState(false);
   const [isGeneratingBarcode, setIsGeneratingBarcode] = useState(false);
   const [imageFile, setImageFile] = useState<File | null>(null);
-  const [imagePreview, setImagePreview] = useState<string | null>(product?.image_url || null);
+  const [imagePreview, setImagePreview] = useState<string | null>(getProductImageUrl(product?.image_url));
 
   useEffect(() => {
     if (product) {
@@ -55,7 +56,7 @@ const ProductForm = ({ open, onOpenChange, onSubmit, product, title }: ProductFo
         supplier: product.supplier || '',
         barcode: product.barcode || ''
       });
-      setImagePreview(product.image_url || null);
+      setImagePreview(getProductImageUrl(product.image_url));
       setImageFile(null);
     } else {
       setFormData({ name: '', category: '', price: 0, purchase_price: 0, stock: 0, supplier: '', barcode: '' });

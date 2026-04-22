@@ -1,20 +1,18 @@
 import { useState } from 'react';
 import { useInView } from 'react-intersection-observer';
 import { Skeleton } from '@/components/ui/skeleton';
+import { getProductImageUrl } from '@/lib/productImage';
 
 interface LazyImageProps {
-  src: string;
+  src?: string | null;
   alt: string;
   className?: string;
 }
 
 export const LazyImage = ({ src: rawSrc, alt, className = '' }: LazyImageProps) => {
-  // Ensure the src is a full URL; if it's just a filename, prepend CDN base
-  const src = rawSrc && !rawSrc.startsWith('http')
-    ? `https://cdn.mkaindo.com/autopart-products/${rawSrc}`
-    : rawSrc;
+  const src = getProductImageUrl(rawSrc);
   const [isLoaded, setIsLoaded] = useState(false);
-  const [hasError, setHasError] = useState(false);
+  const [hasError, setHasError] = useState(!src);
   const { ref, inView } = useInView({
     triggerOnce: true,
     rootMargin: '200px', // Start loading before image enters viewport

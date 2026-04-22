@@ -9,6 +9,7 @@ import { Product } from '@/hooks/useProducts';
 import { api } from '@/lib/api';
 import { useToast } from '@/hooks/use-toast';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { getProductImageFilename } from '@/lib/productImage';
 
 interface ProductExcelImportProps {
   products: Product[];
@@ -54,7 +55,7 @@ const ProductExcelImport = ({ products, onImportComplete }: ProductExcelImportPr
         'Stok': product.stock,
         'Supplier': product.supplier || '',
         'Barcode': product.barcode || '',
-        'Gambar URL': product.image_url || '',
+        'Gambar URL': getProductImageFilename(product.image_url) || '',
         'Tanggal Dibuat': new Date(product.created_at).toLocaleDateString('id-ID'),
         'Terakhir Update': new Date(product.updated_at).toLocaleDateString('id-ID'),
       }));
@@ -88,7 +89,7 @@ const ProductExcelImport = ({ products, onImportComplete }: ProductExcelImportPr
       'Stok': 10,
       'Supplier': 'Supplier ABC',
       'Barcode': 'PRD123456',
-      'Gambar URL': 'https://cdn.mkaindo.com/autopart-products/contoh.jpg',
+      'Gambar URL': 'contoh.jpg',
     }];
 
     const wb = XLSX.utils.book_new();
@@ -150,7 +151,7 @@ const ProductExcelImport = ({ products, onImportComplete }: ProductExcelImportPr
           stock: row['Stok'] !== undefined && row['Stok'] !== '' ? Number(row['Stok']) : 0,
           supplier: row['Supplier'] ? String(row['Supplier']).trim() : null,
           barcode: row['Barcode'] ? String(row['Barcode']).trim() : null,
-          image_url: row['Gambar URL'] ? String(row['Gambar URL']).trim() : undefined,
+          image_url: getProductImageFilename(row['Gambar URL'] ? String(row['Gambar URL']).trim() : undefined) || undefined,
         };
       });
 

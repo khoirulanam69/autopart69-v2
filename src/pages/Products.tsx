@@ -13,6 +13,7 @@ import { LazyImage } from '@/components/LazyImage';
 import { BarcodeShareDialog } from '@/components/BarcodeShareDialog';
 import { ImageLightbox } from '@/components/ImageLightbox';
 import ProductExcelImport from '@/components/ProductExcelImport';
+import { getProductImageUrl } from '@/lib/productImage';
 
 const CATEGORIES = [
   { value: 'all', label: 'Semua Kategori' },
@@ -213,15 +214,18 @@ const Products = () => {
                       }}
                     >
                       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 px-1">
-                        {rowProducts.map((product) => (
+                        {rowProducts.map((product) => {
+                          const productImageUrl = getProductImageUrl(product.image_url);
+
+                          return (
                           <Card key={product.id} className="h-fit hover:shadow-lg transition-shadow">
-                            {product.image_url && (
+                            {productImageUrl && (
                               <div 
                                 className="cursor-pointer"
-                                onClick={() => setLightboxImage({ url: product.image_url!, alt: product.name })}
+                                onClick={() => setLightboxImage({ url: productImageUrl, alt: product.name })}
                               >
                                 <LazyImage
-                                  src={product.image_url}
+                                  src={productImageUrl}
                                   alt={product.name}
                                   className="w-full h-40 sm:h-48 object-cover hover:opacity-90 transition-opacity"
                                 />
@@ -313,7 +317,8 @@ const Products = () => {
                               </div>
                             </CardContent>
                           </Card>
-                        ))}
+                        );
+                        })}
                       </div>
                     </div>
                   );

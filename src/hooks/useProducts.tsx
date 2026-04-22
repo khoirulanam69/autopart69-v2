@@ -3,6 +3,7 @@ import { api } from '@/lib/api';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from './useAuth';
 import { compressImage } from '@/lib/imageCompression';
+import { getProductImageFilename } from '@/lib/productImage';
 
 export interface Product {
   id: string;
@@ -83,7 +84,7 @@ export const useProducts = () => {
       if (imageFile && data) {
         const { url, error: uploadError } = await uploadProductImage(imageFile, data.id);
         if (url && !uploadError) {
-          const { data: updatedData } = await api.updateProduct(data.id, { image_url: url });
+          const { data: updatedData } = await api.updateProduct(data.id, { image_url: getProductImageFilename(url) });
           setProducts(prev => [updatedData, ...prev]);
           toast({ title: "Berhasil", description: "Produk berhasil ditambahkan" });
           return { data: updatedData, error: null };
@@ -104,7 +105,7 @@ export const useProducts = () => {
       if (imageFile) {
         const { url, error: uploadError } = await uploadProductImage(imageFile, id);
         if (url && !uploadError) {
-          productData.image_url = url;
+          productData.image_url = getProductImageFilename(url) || undefined;
         }
       }
 

@@ -1,6 +1,7 @@
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { getProductImageUrl } from '@/lib/productImage';
 
 interface ImageLightboxProps {
   open: boolean;
@@ -10,6 +11,8 @@ interface ImageLightboxProps {
 }
 
 export function ImageLightbox({ open, onOpenChange, imageUrl, alt = 'Product image' }: ImageLightboxProps) {
+  const resolvedImageUrl = getProductImageUrl(imageUrl);
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-[95vw] max-h-[95vh] p-0 border-none bg-transparent shadow-none overflow-hidden">
@@ -29,12 +32,14 @@ export function ImageLightbox({ open, onOpenChange, imageUrl, alt = 'Product ima
             className="flex items-center justify-center w-full"
             onClick={() => onOpenChange(false)}
           >
-            <img
-              src={imageUrl}
-              alt={alt}
-              className="max-w-full max-h-[90vh] object-contain rounded-lg"
-              onClick={(e) => e.stopPropagation()}
-            />
+            {resolvedImageUrl && (
+              <img
+                src={resolvedImageUrl}
+                alt={alt}
+                className="max-w-full max-h-[90vh] object-contain rounded-lg"
+                onClick={(e) => e.stopPropagation()}
+              />
+            )}
           </div>
         </div>
       </DialogContent>
