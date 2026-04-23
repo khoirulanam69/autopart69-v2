@@ -14,6 +14,7 @@ import { BarcodeShareDialog } from '@/components/BarcodeShareDialog';
 import { ImageLightbox } from '@/components/ImageLightbox';
 import ProductExcelImport from '@/components/ProductExcelImport';
 import { getProductImageUrl } from '@/lib/productImage';
+import { useAuth } from '@/hooks/useAuth';
 
 const CATEGORIES = [
   { value: 'all', label: 'Semua Kategori' },
@@ -28,6 +29,7 @@ const CATEGORIES = [
 
 const Products = () => {
   const { products, loading, hasMore, createProduct, updateProduct, deleteProduct, searchProducts, loadMore, fetchProducts } = useProducts();
+  const { user } = useAuth();
   const [searchQuery, setSearchQuery] = useState('');
   const [showForm, setShowForm] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
@@ -36,6 +38,8 @@ const Products = () => {
   const [barcodeProduct, setBarcodeProduct] = useState<Product | null>(null);
   const [showBarcodeDialog, setShowBarcodeDialog] = useState(false);
   const [lightboxImage, setLightboxImage] = useState<{ url: string; alt: string } | null>(null);
+  const canManageProducts = user?.role === 'admin' || user?.role === 'staff';
+  const canDeleteProducts = user?.role === 'admin';
   
   const parentRef = useRef<HTMLDivElement>(null);
 
@@ -152,10 +156,12 @@ const Products = () => {
                   products={products} 
                   onImportComplete={() => fetchProducts(true)} 
                 />
-                <Button onClick={() => setShowForm(true)} size="sm" className="sm:h-10">
-                  <Plus className="h-4 w-4 sm:mr-2" />
-                  <span className="hidden sm:inline">Tambah</span>
-                </Button>
+                {canManageProducts && (
+                  <Button onClick={() => setShowForm(true)} size="sm" className="sm:h-10">
+                    <Plus className="h-4 w-4 sm:mr-2" />
+                    <span className="hidden sm:inline">Tambah</span>
+                  </Button>
+                )}
               </div>
             </div>
           </div>
@@ -249,39 +255,43 @@ const Products = () => {
                                   >
                                     <QrCode className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
                                   </Button>
-                                  <Button
-                                    size="sm"
-                                    variant="ghost"
-                                    onClick={() => handleEditProduct(product)}
-                                    className="h-7 w-7 sm:h-8 sm:w-8 p-0"
-                                  >
-                                    <Edit className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
-                                  </Button>
-                                  <AlertDialog>
-                                    <AlertDialogTrigger asChild>
-                                      <Button size="sm" variant="ghost" className="h-7 w-7 sm:h-8 sm:w-8 p-0">
-                                        <Trash2 className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
-                                      </Button>
-                                    </AlertDialogTrigger>
-                                    <AlertDialogContent className="max-w-[90vw] sm:max-w-lg">
-                                      <AlertDialogHeader>
-                                        <AlertDialogTitle>Hapus Produk</AlertDialogTitle>
-                                        <AlertDialogDescription>
-                                          Apakah Anda yakin ingin menghapus produk "{product.name}"? 
-                                          Tindakan ini tidak dapat dibatalkan.
-                                        </AlertDialogDescription>
-                                      </AlertDialogHeader>
-                                      <AlertDialogFooter>
-                                        <AlertDialogCancel>Batal</AlertDialogCancel>
-                                        <AlertDialogAction
-                                          onClick={() => handleDeleteProduct(product.id)}
-                                          className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                                        >
-                                          Hapus
-                                        </AlertDialogAction>
-                                      </AlertDialogFooter>
-                                    </AlertDialogContent>
-                                  </AlertDialog>
+                                  {canManageProducts && (
+                                    <Button
+                                      size="sm"
+                                      variant="ghost"
+                                      onClick={() => handleEditProduct(product)}
+                                      className="h-7 w-7 sm:h-8 sm:w-8 p-0"
+                                    >
+                                      <Edit className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
+                                    </Button>
+                                  )}
+                                  {canDeleteProducts && (
+                                    <AlertDialog>
+                                      <AlertDialogTrigger asChild>
+                                        <Button size="sm" variant="ghost" className="h-7 w-7 sm:h-8 sm:w-8 p-0">
+                                          <Trash2 className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
+                                        </Button>
+                                      </AlertDialogTrigger>
+                                      <AlertDialogContent className="max-w-[90vw] sm:max-w-lg">
+                                        <AlertDialogHeader>
+                                          <AlertDialogTitle>Hapus Produk</AlertDialogTitle>
+                                          <AlertDialogDescription>
+                                            Apakah Anda yakin ingin menghapus produk "{product.name}"? 
+                                            Tindakan ini tidak dapat dibatalkan.
+                                          </AlertDialogDescription>
+                                        </AlertDialogHeader>
+                                        <AlertDialogFooter>
+                                          <AlertDialogCancel>Batal</AlertDialogCancel>
+                                          <AlertDialogAction
+                                            onClick={() => handleDeleteProduct(product.id)}
+                                            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                          >
+                                            Hapus
+                                          </AlertDialogAction>
+                                        </AlertDialogFooter>
+                                      </AlertDialogContent>
+                                    </AlertDialog>
+                                  )}
                                 </div>
                               </div>
                             </CardHeader>
